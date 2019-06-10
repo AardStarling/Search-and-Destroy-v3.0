@@ -1784,7 +1784,7 @@
 function goto_number(name, line, wildcards)
 		local state = char_state
 		if (state == "3") then
-			gotoIndex = tonumber(wildcards.id) or 1
+			gotoIndex = tonumber(wildcards.index) or 1
 			if gotoList[gotoIndex] then
 				if (tonumber(gotoList[gotoIndex]) == nil) then
 					xrun_to("", "", {destination=gotoList[gotoIndex]})

@@ -6,7 +6,7 @@ most important things you need to know.
 
 1\. Search and Destroy does not, has not, and will not ever contain malware or do anything to threaten its users safety
 whatsoever.  Its development will remain entirely transparent, and it will remain subject to code audits *at all times* any
-*by any person*.  There is not and will not be any exception to this policy whatsoever.
+*by any person*.  There is not and will not be any exception to this policy whatsoever.  No exceptions.
 
 You need to understand very plainly: Lasher **wants** me to add malware to S&D.  He **wants** me to use it as a weapon against you, because if I do that, then he would be **right** and he could finally do what he has wanted to do for years now:  Post 
 the note about it.  I, quite simply, will not allow that to happen.  After 22 years of dealing with him, I know how he thinks.

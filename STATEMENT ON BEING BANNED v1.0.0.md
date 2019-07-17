@@ -38,8 +38,6 @@ said he had "asked me quite nicely" to not shout caps on gossip.  He later said 
 That was in reference to an isolated incident which was not repeated.  Nothing whatsoever about caps, and no indication that
 it was a directive beyond the specific case / incident.  You cannot trust him.  Period.  He will bend any fact, and use anything
 against you, if he decides he does not like you and that his day would be better off without you, and the wants or needs of 
-the actual community will not be considered.  Lasher is unfit to administer the Aardwolf community, and his lackluster updates
-call into serious question whether he is even fit to continue maintaining it as its coder.  Do not trust Lasher or any other
-Immortal under any circumstances.
+the actual community will not be considered.  Lasher is unfit to administer the Aardwolf community, and his lackluster updates over the past five years call into serious question whether he is even fit to continue maintaining it as its coder.  I submit that he is not.  Do not trust Lasher or any other Immortal under any circumstances.  They are not your friends.
 
 4\. When was the last time Lasher did **anything** to make anything interesting on channels.  He is permanently wizi, almost never talks at all, even on imm channel.  And he wants to get on my case because I do things that generate actual talk and socialization?  Yeah, ok.  This is why your community is dying, you fucking idiot (Lasher).  Put down the bath salts and meth bitch and actually pay attention for a change.

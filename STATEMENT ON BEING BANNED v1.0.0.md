@@ -9,7 +9,7 @@ whatsoever.  Its development will remain entirely transparent, and it will remai
 *by any person*.  There are not and will not be any exception to this policy whatsoever.
 
   Please understand, Lasher **wants** me to add malware to S&D.  He **wants** me to use it as a weapon against you,
-because if I do that, then he would be **right** and he could finally do what he has wanted to do for 22 years:  Post the note
+because if I do that, then he would be **right** and he could finally do what he has wanted to do for years now:  Post the note
 about it.  After 22 years of dealing with him, I know how he thinks.  That is a large part of how I always know what to say to
 get unbanned, even when I'm guilty as hell and I know it.  By keeping S&D fully transparent, honest, and safe, Lasher is
 forever denied this thing that he desires so greatly.

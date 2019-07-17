@@ -22,7 +22,7 @@ would have to do?  And risk a counter-suit where I expose the multitude of lies 
 I don't think so.  Search and Destroy development will continue on course as if nothing had happened and there is nothing
 Lasher can to do stop it.  Read that again, you vicious, lying piece of trash.  There is nothing you can do.  Nothing.
 
-2) Despite being firmly of the belief that Lasher has out-stayed his usefulness to the Aardwolf community, I will not
+2\. Despite being firmly of the belief that Lasher has out-stayed his usefulness to the Aardwolf community, I will not
 ever release any script if I so much as suspect it will violate the Rules of Aardwolf and place any user in jeopardy.
 Accordingly, compliance with the rules of Aardwolf will be the *number one* design consideration when implementing any feature.
 If the rules of Aardwolf change and cause any feature to become illegal, that feature will be reworked, or removed, as needed
@@ -30,7 +30,7 @@ to ensure total compliance with the Rules.  In such case, all users will be urge
 using S&D as a tool to advance your character, not to bot and get nuked.  I will do everything in my power to ensure that
 S&D never places any user in such jeopardy.
 
-3)  Do not trust Lasher.  Once again, the initial fakechannel which upset me and caused me to lash out was based on a lie.  He
+3\.  Do not trust Lasher.  Once again, the initial fakechannel which upset me and caused me to lash out was based on a lie.  He
 had asked me "quite nicely" to not shout caps on gossip.  He later said he told me this via tell.  Here is the relevant tell:
 
  - 09 May 08:42:29 - Lasher tells you 'the 'ninja ninja' is pointless spam and I am asking you to stop. Imagine what 

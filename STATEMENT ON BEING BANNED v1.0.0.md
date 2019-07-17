@@ -8,8 +8,8 @@ most important things you need to know.
 whatsoever.  Its development will remain entirely transparent, and it will remain subject to code audits *at all times* any
 *by any person*.  There are not and will not be any exception to this policy whatsoever.
 
-  Please understand, Lasher *wants* me to add malware to S&D.  He *wants* me to use it as a weapon against you,
-because if I do that, then he would be *right* and he could finally do what he has wanted to do for 22 years:  Post the note
+  Please understand, Lasher **wants** me to add malware to S&D.  He **wants** me to use it as a weapon against you,
+because if I do that, then he would be **right** and he could finally do what he has wanted to do for 22 years:  Post the note
 about it.  After 22 years of dealing with him, I know how he thinks.  That is a large part of how I always know what to say to
 get unbanned, even when I'm guilty as hell and I know it.  By keeping S&D fully transparent, honest, and safe, Lasher is
 forever denied this thing that he desires so greatly.
@@ -24,7 +24,7 @@ Lasher can to do stop it.  Read that again, you vicious, lying piece of trash.  
 
 2\. Despite being firmly of the belief that Lasher has out-stayed his usefulness to the Aardwolf community, I will not
 ever release any script if I so much as suspect it will violate the Rules of Aardwolf and place any user in jeopardy.
-Accordingly, compliance with the rules of Aardwolf will be the *number one* design consideration when implementing any feature.
+Accordingly, compliance with the rules of Aardwolf will be the **number one** design consideration when implementing any feature.
 If the rules of Aardwolf change and cause any feature to become illegal, that feature will be reworked, or removed, as needed
 to ensure total compliance with the Rules.  In such case, all users will be urged to update to that version of S&D.  You are
 using S&D as a tool to advance your character, not to bot and get nuked.  I will do everything in my power to ensure that

@@ -1,3 +1,5 @@
+**UPDATE** Within hours of posting this, my character Starling was entirely deleted.  Talk about feeling threatened!  Too good!
+
 Good morning friends, ninjas, and other S&D users and fans of mine,
 
 I'm banned for the final time and as I explained to Lasher, the only thing it accomplishes is placing me beyond any hopes

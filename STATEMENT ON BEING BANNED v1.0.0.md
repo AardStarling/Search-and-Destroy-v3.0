@@ -14,12 +14,12 @@ about it.  After 22 years of dealing with him, I know how he thinks.  That is a 
 get unbanned, even when I'm guilty as hell and I know it.  By keeping S&D fully transparent, honest, and safe, Lasher is
 forever denied this thing that he desires so greatly.
 
-I get far more benefit and satisfaction out of adding features that he hates, than I ever could by screwing over you, my
+  I get far more benefit and satisfaction out of adding features that he hates, than I ever could by screwing over you, my
 loyal customers.  And therefore, that is what I'm going to do.  I'm going to keep S&D open and transparent, and I'm going to
 just add features that he hates, because what is he going to do?  File a federal lawsuit and pay for it, which is what he
 would have to do?  And risk a counter-suit where I expose the multitude of lies on which he's based his punishment of me?
 
-I don't think so.  Search and Destroy development will continue on course as if nothing had happened and there is nothing
+  I don't think so.  Search and Destroy development will continue on course as if nothing had happened and there is nothing
 Lasher can to do stop it.  Read that again, you vicious, lying piece of trash.  There is nothing you can do.  Nothing.
 
 2.  Despite being firmly of the belief that Lasher has out-stayed his usefulness to the Aardwolf community, I will not

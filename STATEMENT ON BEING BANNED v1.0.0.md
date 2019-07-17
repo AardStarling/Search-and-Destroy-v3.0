@@ -31,7 +31,7 @@ using S&D as a tool to advance your character, not to bot and get nuked.  I will
 S&D never places any user in such jeopardy.
 
 3\.  Do not trust Lasher.  Once again, the initial fakechannel which upset me and caused me to lash out was based on a lie.  He
-had asked me "quite nicely" to not shout caps on gossip.  He later said he told me this via tell.  Here is the relevant tell:
+said he had "asked me quite nicely" to not shout caps on gossip.  He later said he told me this via tell.  Here is the relevant tell:
 
  - 09 May 08:42:29 - Lasher tells you 'the 'ninja ninja' is pointless spam and I am asking you to stop. Imagine what 
  the channel would look like if everyone did something like that a few times a day.'
@@ -42,3 +42,5 @@ against you, if he decides he does not like you and that his day would be better
 the actual community will not be considered.  Lasher is unfit to administer the Aardwolf community, and his lackluster updates
 call into serious question whether he is even fit to continue maintaining it as its coder.  Do not trust Lasher or any other
 Immortal under any circumstances.
+
+4\. When was the last time Lasher did **anything** to make anything interesting on channels.  He is permanently wizi, almost never talks at all, even on imm channel.  And he wants to get on my case because I do things that generate actual talk and socialization?  Yeah, ok.  This is why your community is dying, you fucking idiot (Lasher).  Put down the bath salts and meth bitch and actually pay attention for a change.

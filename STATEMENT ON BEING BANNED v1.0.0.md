@@ -45,13 +45,15 @@ the actual community will not be considered.  Lasher is unfit to administer the 
 4\. When was the last time Lasher did **anything** to make anything interesting on channels.  He is permanently wizi, almost never talks at all, even on imm channel.  And he wants to get on my case because I do things that generate actual talk and socialization?  Yeah, ok.  This is why your community is dying, you fucking idiot (Lasher).  Put down the bath salts and meth bitch and actually pay attention for a change.
 
 **ADDENDUM**
-Consider that everyone who has ever worked on S&D has either been run off the game or outright banned.
+Consider that nearly everyone who has ever worked on S&D has either been run off the game or outright banned.
  - Winklewinkle quit the game after Lasher harassed and cussed him out repeatedly via tells. (Yes, you did, Lasher!  Yes, you did!)
  - Lunk was harassed and banned.
  - Lasher harassed me multiple times via tells.
+ - Lasher has harassed Pwar, in reference to Winklegold, via tells multiple times.
+ - Numerous irrational and angry board posts over the years.
  - Instead of doing the sensible thing and just telling me what the issue was if there was a problem, he decides instead to 
  fuck me around with a fakechannel and explain nothing.  Please tell me it couldn't have been handled better.
  
- Nothing is coincidental about it — he hates S&D and has had it out for its creator and maintainers since day one.
+ There is nothing is coincidental about it — Lasher hates S&D and has had it out for its creator and maintainers since day one.
  
  Don't trust him.

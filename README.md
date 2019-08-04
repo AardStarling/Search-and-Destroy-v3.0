@@ -1,3 +1,17 @@
+# Search and Destroy v3.0 (rel-1.0.6) — 4 Aug 2019
+Good morning friends, ninjas, and other fellow associates.  This isn't much of an update, but it's here because I said I'd continue to work on and maintain S&D, and I told Lasher basically the same via email.  Regardless of what you may think of me, I'm not doing myself any favors if I don't follow through.
+
+ - Fixed a crash occurring when your quest mob is 'missing'.
+ - If your quest mob is missing, 'xq' will show its last known location.
+ - I've had this feature on my own S&D for a while, "xcp next" when you kill your cp or gq mob.  Instead of having to 'xcp' the next mob every single time, now you don't.  The command 'xcp next' by itself toggles the feature on and off, so you can use it or not as you see fit.
+ - The mob keyword guesser now has an exceptions table which is currently part of the code, but which could easily be
+ stored in and loaded from a separate .lua file.  The list of exceptions is far, far from complete but I had it in my own S&D so as proof of concept what I have is included with this update.  I'll go ahead and update it in the code for now, but just so you know my plan of action is to incorporate it into the planned SDDB system, or to keep it up to date as a separate file that could be loaded in.  You know, imms, you can bitch at me all you want about "minimum keywords" and generally be an obtuse dipshit like Broud if you want to, but the fact is I have more control than you do and if you don't want to be sensible about fixing this stuff mud-side I can just do it for you.  If you don't like it, get with the program or else pound sand and deal.  
+ 
+It's a short list but don't doubt me.  The next big thing is to assimilate the main features of Pwar's Winklegold, which means a lot of database stuff.  It's less complicated than I initially feared, and since Pwar 'borrowed' code from this S&D to use in Winklegold (which is fine, because you're allowed to copy and use what you want) I don't feel too bad about borrowing in return :)  I do plan on including a feature that will take a Winklegold database and copy its data to SDDB and have it work.  I just need some time to research some things and do the overall design work, and the main difficulty is time rather than anything technical.
+
+That's it for now.  Full ahead and full speed.
+
+
 # Search and Destroy v3.0 (rel-1.0.5) — 11 Apr 2019
 Here is the latest update.  As with the last few, it's mainly bugfixes and similar.  Let me know what you think.
 

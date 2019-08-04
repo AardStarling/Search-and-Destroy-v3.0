@@ -36,26 +36,31 @@
 	require "movewindow"
 	require "serialize"
 	require "tprint"
+	require "wait"
 	
-	local current_sd_version = "Search & Destroy v3.0 (rel-1.0.5)"
-	local plugin_id_gmcp_handler = "3e7dedbe37e44942dd46d264"		-- easier to remember the var names than the plugin id's
-	local plugin_id_gmcp_mapper = "b6eae87ccedd84f510b74714"
-	local plugin_id_z_order = "462b665ecb569efbf261422f"
+	local current_sd_version 		= "Search & Destroy v3.0 (rel-1.0.6)"
+	local plugin_id_gmcp_handler 	= "3e7dedbe37e44942dd46d264"		-- easier to remember the var names than the plugin id's
+	local plugin_id_gmcp_mapper		= "b6eae87ccedd84f510b74714"
+	local plugin_id_z_order 		= "462b665ecb569efbf261422f"
 	 
 	local main_color_table = {	["gr1"] = "#00C040", ["gr2"] = "#90EE90", ["gr3"] = "#006000",
 								["gy1"] = "#808080", ["gy2"] = "#484848", ["gy3"] = "#404040",
 								["or1"] = "#FF8000", ["or2"] = "#FF5000", ["or3"] = "#FF3000",
 								["wh1"] = "#E0E0E0", ["wh2"] = "#F0F0F0", }
 	
-	local aard_mapper_database = GetInfo(66)..WorldName()..".db"
-		  
+	local plugins_folder = GetPluginInfo(GetPluginID(), 20)
+	local db_file_1
+	local db_file_2
+	local mapper_db_file = GetInfo(66)..WorldName()..".db"	-- typically aardwolf.db, normally found in main Mushclient folder
+	--local sd_db_file = GetPluginInfo(GetPluginID(), 20) .. "sddb.db"	-- sddb.db, normally found in MUSHClient/worlds/plugins folder
+
 -- [[ Current, previous room data GMCP_room_info ]]
 	local current_room  = { rmid = "-1", arid = "-1", maze = "no", exits = {} }
 	local previous_room = { rmid = "-2", arid = "-2", maze = "no", exits = {} }
 	local room_history = { }
 	
 -- [[ player status ]]
-	local char_state = "0"		
+	local current_character_state = "0"		
 	
 -- [[ Execute in area, room ]]
 	local execute_in_area_tbl = { i=0, j=0, arid="", f="", stat=1 }
@@ -63,10 +68,10 @@
 	local vidblain_nav_tbl    = { i=0, j=0, rmid="", f="", stat=1 }
 	
 -- [[ main target data / current activity type ]]
-	local current_activity_type = "init"
 	local main_target_list = {}
 	local room_targets_ignored = {}
 	local area_room_type = "init"
+	local current_activity = "init"	-- valid: cp, gq, init, none = "init"
 	
 -- [[ campaign data (cpmd) ]]
 	local cp_info_level = tonumber(GetVariable("mcvar_cp_level_taken")) or 0
@@ -91,10 +96,6 @@
 	local gq_info_maxlvl = tonumber(GetVariable("mcvar_gq_info_maxlvl")) or 0
 	local gq_info_efflvl = tonumber(GetVariable("mcvar_gq_info_efflvl")) or 0
 
--- [[ gq status, etc.]]
-	
-	
-
 -- [[ current target data - cp, gq, quest ]]
 	local xcp_index = 0
 	local quest_target = {}	-- {qmob = "", area = "", room = "", keyword="", status="0"}
@@ -103,7 +104,8 @@
 	
 -- [[ xcp action mode ]]
 	local xcp_action_mode = GetVariable("mcvar_xcp_action_mode") or "qw"
-
+	local xcp_next_onoff = GetVariable("mcvar_xcp_next_onoff") or "off"
+	
 -- [[ goto/nx data ]]
 	local gotoArea = -1
 	local gotoIndex = 0
@@ -144,17 +146,26 @@
 -- [[ Variables from old Search and Destroy ]]
 	local dir_map = { north = "n", south = "s", east = "e", west = "w", up = "u", down = "d" }
 
--- [[ Where trick, apparently ]]
-	--local whereTrickFullMob = ""
-	--local whereTrickIndex = 0
-	--local whereTrickMob = ""
-	--local whereTrickNextIndex = 0
-	--local whereTrickNextMob = ""
-	
+-- [[ game time data ]]
+	local gCycle 
+	local gYear
+	local gYearName
+	local gSeason
+	local gDay
+	local gHour
+
+-- [[ Log players ]]
+	local logplayer_table = {}
+	local logplayer_levels
+	local logplayer_hours
+	local logplayer_stats
+	local logplayer_qp
+	local logplayer_timestamp
+	local logplayer_datestamp 
+
 -- [[ S&D window data ]]
 	local win = "sd_window_" .. GetPluginID()
 	local windowinfo
-	local win_bgcolor = 0x000000
 	local win_pos_x = tonumber(GetVariable("mcvar_window_pos_x")) or 0			-- window position x,y coordinates
 	local win_pos_y = tonumber(GetVariable("mcvar_window_pos_y")) or 0
 	local win_width = tonumber(GetVariable("mcvar_window_width")) or 325
@@ -171,12 +182,15 @@
 	local win_font_size = tonumber(GetVariable("mcvar_window_font_size")) or 8
 	local win_hotspots = {}
 	local win_target_hotspots = {}
+
+-- [[ S&D window color data]]
+	local win_bgcolor = 0x000000
 	
 --	[[ Plugin broadcast/receive process ]]
 	function OnPluginBroadcast(msg, id, name, text)
 		if (id == plugin_id_gmcp_handler) then
 			if (text == "char.status") then		-- character status
-				char_state = gmcp("char.status.state")
+				current_character_state = gmcp("char.status.state")
 			elseif (text == "room.info") then	-- current/previous room info
 				local ri = gmcp("room.info")
 				ri.maze = (string.match(ri.details, "maze") == "maze") and 1 or 0
@@ -185,8 +199,8 @@
 				if (current_room.rmid == previous_room.rmid) then
 					-- do nothing
 				else
-					if (#room_history == 200) then
-						room_history[200] = nil
+					if (#room_history == 300) then
+						room_history[300] = nil
 					end
 					table.insert(room_history, 1, room_history[0])
 					room_history[0] = { rmid = current_room.rmid, arid=current_room.arid }
@@ -208,12 +222,25 @@
 		ColourNote("#808080", "", "+=================================================================+\n")
 		windowinfo = movewindow.install (win, miniwin.pos_center, miniwin.create_absolute_location, false, nil, {mouseup=MouseUp, mousedown=LeftClickOnly, dragmove=LeftClickOnly, dragrelease=LeftClickOnly},{x=win_pos_x, y=win_pos_y})
 		xg_create_window()
+	--	db = assert(sqlite3.open(sd_db_file))
+		--if not db then db = assert (sqlite3.open(dbPath)) end
+		--DebugNote("opened WinkleGold_Database.db")
+		--print(sql_table_exists("mobs"))
+	--	if not sql_table_exists("mobs") then
+	--	--DebugNote("No tables found in database, creating fresh structure.")
+	--		create_sddb_tables()
+	--		--print("create sql tables")
+	--	else
+	--		--print("no create sql tables")
+	--	end
+	--	db:close()
 	end
 	
 	local init_called = 0
 	function init_plugin()
 		if not IsConnected() then return end
-		if ((char_state ~= "3") and (char_state ~= "8") and (char_state ~= "9") and (char_state ~= "11")) then
+		local ch_state = current_character_state
+		if ((ch_state ~= "3") and (ch_state ~= "8") and (ch_state ~= "9") and (ch_state ~= "11")) then
 			send_gmcp_packet("request char")
 			return
 		end
@@ -422,6 +449,7 @@
 		["scarred"] 	= { start = "34036" },
 		["sendhian"] 	= { start = "20288", vidblain = true },
 		["sennarre"] 	= { start = "15491" },
+		["shadowsend"]	= { start = "53439" },
 		["shouggoth"] 	= { start = "34087" },
 		["siege"] 		= { start = "43265" },
 		["sirens"] 		= { start = "16298" },
@@ -444,6 +472,7 @@
 		["terra"] 		= { start = "19679" },
 		["terramire"] 	= { start =  "4493" },
 		["thieves"] 	= { start =     "7" },
+		["tilule"]		= { start = "54790"	},
 		["times"] 		= { start = "28463" },
 		["tirna"] 		= { start = "20136" },
 		["tol"] 		= { start = "16325" },
@@ -677,6 +706,7 @@
 		["Sanctity of Eternal Damnation"] 		= "sanctity",
 		["Sen'narre Lake"] 						= "sennarre",
 		["Seven Wonders"] 						= "wonders",
+		["Shadow's End"]						= "shadowsend",
 		["Sheila's Cat Sanctuary"] 				= "cats",
 		["Sho'aram, Castle in the Sand"] 		= "sandcastle",
 		["Siren's Oasis Resort"] 				= "sirens",
@@ -789,6 +819,7 @@
 		["The Wobbly Woes of Woobleville"] 		= "wooble",
 		["The Wood Elves of Nalondir"] 			= "woodelves",
 		["The Yurgach Domain"] 					= "yurgach",
+		["Tilule Rehabilitation Clinic"]		= "tilule",
 		["Tir na nOg"] 							= "tirna",
 		["Tournament Camps"] 					= "camps",
 		["Tribal Origins"] 						= "origins",
@@ -809,6 +840,9 @@
 		["Yggdrasil: The World Tree"] 			= "ygg",
 		["Zangar's Demonic Grotto"] 			= "zangar" }
 
+-- 	[[ Lookup table: Game calendar data]]		
+	local gCalendar = { }	
+		
 --	[[ Load saved table data ]]
 	function load_saved_table_data()
 		load_area_start_rooms()
@@ -879,42 +913,111 @@
 --	[[ Guess mob keywords ]]
 	local gmkw_omit = {	["a"] = "",	["an"] = "", ["and"] = "", ["of"] = "", ["or"] = "", ["some"] = "", ["the"] = "" }
 	local gmkw_area_filters = {
-		["adaldar"]		= { { f= "^.*(el)vish (%a*%s?%a+)$",			g="%1 %2" }, },
+		["adaldar"]		= { { f= "^.*(el)vish (%a*%s?%a+)$",			g="%1 %2" 	}, },
 		
-		["bonds"]		= { { f= "^(.*[bgry]%a+) dragon$",				g="%1" }, },
+		["bonds"]		= { { f= "^(.*[bgry]%a+) dragon$",				g="%1"		}, },
 		
-		["citadel"]   	= {	{ f= "^([bgjlmsv]%a+) ([ap]r%a+[el]) .+$",	g="%1 %2" }, },
-		
-		["ddoom"]   	= {	{ f= "^(T%a+) sun%a+ (leader)$",			g="%1 %2" },
-							{ f= "^([LY]%a+i) [sg]%a+ warrior$",		g="%1" }, },	
-		
-		["hatchling"] 	= {	{ f= "^(%a+) dragon (egg)$", 				g="%1 %2" },
-							{ f= "^(%a+) dragon (hatchling)$", 			g="%1 %2" },
-							{ f= "^(%a+ %a+) dragon whelp$", 			g="%1" },
-							{ f= "^(%a+) dragon (whelp)$", 				g="%1 %2" }, },
+		["citadel"]   	= {	{ f= "^([bgjlmsv]%a+) ([ap]r%a+[el]) .+$",	g="%1 %2"	}, },
 							
-		["sirens"] 		= {	{ f= "^miss ([%a']+)%s?(%a*).*%a$", 		g="%1 %2" }, },
+		["elemental"]   = {	{ f= "^(%a+)%'(%a+) (%a+)$",				g="%1%2 %3"	}, 
+							{ f= "^wandering (%a+)%'(%a+) (%a+)$",		g="%1%2 %3"	}, },
+	
+		["hatchling"] 	= {	{ f= "^(%a+) dragon (egg)$", 				g="%1 %2"	},
+							{ f= "^(%a+) dragon (hatchling)$", 			g="%1 %2"	},
+							{ f= "^(%a+ %a+) dragon whelp$", 			g="%1"		},
+							{ f= "^(%a+) dragon (whelp)$", 				g="%1 %2"	}, },
+							
+		["sirens"] 		= {	{ f= "^miss ([%a']+)%s?(%a*).*%a$", 		g="%1 %2"	}, },
 		
-		["sohtwo"]		= { { f= "^(evil) %a+",							g="%1" },
-							{ f= "^(good) %a+",							g="%1" }, },
+		["sohtwo"]		= { { f= "^(evil) %a+",							g="%1"		},
+							{ f= "^(good) %a+",							g="%1"		}, },
 		
-		["verume"]		= {	{ f= "^lizardman (temple %a+)$", 			g="%1" }, },
+		["verume"]		= {	{ f= "^lizardman (temple %a+)$", 			g="%1"		}, },
 		
-		["wooble"]		= {	{ f= "^sea (%a+)$", 						g="%1" },
-							{ f= "^sea (%a+ %a+)$", 					g="%1" }, }, }
+		["wooble"]		= {	{ f= "^sea (%a+)$", 						g="%1"		},
+							{ f= "^sea (%a+ %a+)$", 					g="%1"		}, }, }
 
 	local gmkw_exceptions = {
-		["necro"] 		= { ["the head necromancer's assistant"] = { kw="old mage assist"}, }, }
+		["aardington"]	= { ["a very large portrait"]				= { kw="large port"			}, },
+		
+		["anthrox"]		= { ["the little white rabbit"]				= { kw="rabb"				}, },
+		
+		["ddoom"]		= { ["a dangerous scorpion"]				= { kw="scorp"				},
+							["Lwji, the Sunrise great warrior"]		= { kw="lwji"				},
+							["Taji, the Sunset leader"]				= { kw="taji lead"			}, 
+							["Taji's personal advisor"]				= { kw="pers advi"			},
+							["Tjac, the Sunrise leader"]			= { kw="tjac lead"			},
+							["Tjac's personal advisor"]				= { kw="sunr advis"			},
+							["Yki, the great Sunset warrior"]		= { kw="yki"				}, },
+		
+		["deneria"]		= { ["High Priest of Miad'Bir"] 			= { kw="high miad" 			}, },
+		
+		["desert"]		= { ["a village citizen"] 					= { kw="citi" 				}, },
+							
+		["fields"]		= { ["a mutated goat"] 						= { kw="goat" 				}, },
+		
+		["fortress"]	= { ["a grizzled goblin dressed in skins"]	= { kw="grizz gobl"		 	},
+							["Blood Silk, Collector of souls, Queen of the spiders"] = { kw="silk queen" }, },
+		
+		["illoria"]		= { ["the King and Queen's Guard"]			= { kw="pers guard"			}, }, 
+		
+		["landofoz"]	= { ["one of Dorothy's uncles"] 			= { kw="doroth uncle"		}, },
+		
+		["laym"]		= { ["an elite guard of the church"]		= { kw="elit guar"			}, },
+		
+		["livingmine"]	= { ["a member of the 'Cal tribe"]			= { kw="memb cal"			},
+							["a member of the 'Sorr tribe"]			= { kw="memb sorr"			},
+							["a member of the 'Tai tribe"]			= { kw="memb tai"			},
+							["Dak'tai's shaman"]					= { kw="dakt shama"			},
+							["the 'Tai chieftain"]					= { kw="tai chief"			}, },
+							
+		["longnight"]	= { ["Mr. Roberge"]							= { kw="car rober"			}, },
+		
+		["losttime"]	= { ["T-Rex"]								= { kw="T-rex"				}, },
+		
+		["manor"]		= { ["Aremata-Popua"] 						= { kw="aremata-pop"	 	}, 
+							["Aremata-Rorua"] 						= { kw="aremata-ror" 		}, },
+							
+		["masq"]		= { ["a gentleman on the way to the ball"]	= { kw="gentl"				},
+							["a very attractive woman"]				= { kw="attr woman"			}, },
+		
+		["necro"] 		= { ["the head necromancer's assistant"]	= { kw="old mage assist" 	}, },
+		
+		["northstar"]	= { ["a Blood Ring elite warrior"]			= { kw="elit warr"			},
+							["Daryoon, a priest of nature"]			= { kw="dary pries"			},
+							["Tristam, the Prince of the Orcs"]		= { kw="trist orc"			}, },
+		
+		["sanctity"]	= { ["a half-converted human"]				= { kw="human"				}, },
+		
+		["siege"]		= { ["a kobold eating lunch"]				= { kw="kobold eating"		},
+							["a large mole"]						= { kw="mole"				},
+							["a very large firefly"]				= { kw="larg firef"			},
+							["the fattest kobold ever"]				= { kw="fat kobold"			}, },
+		
+		["snuckles"]	= {	["Sarah, the grieving snuckle"]			= { kw="sarah griev"		}, },
+
+		["stone"]		= { ["a Citadel of Stone Cityguard"]		= { kw="cit guar"			,} },
+		
+		["talsa"]		= { ["a dwarven mercenary"]					= { kw="dwar merc"			}, },
+		
+		["wooble"]		= { ["the Sea Snake Master-at-Arms"] 		= { kw="snake mast" 		}, },
+
+		["yarr"]		= {	["a pirate sorting the treasure"]		= { kw="pirat sort"			},
+							["a pirate stealing some treasure"]		= { kw="pirat steal"		}, }, 
+							
+		["zoo"]			= { ["a black-footed pine marten"]			= { kw="pine marte"			}, }, }
 	
 	function gmkw(s, a)	-- guess mob keywords
 		if not s then return "" end
 		local ri = current_room
 		local ar = a or ri.zone
 		local guess
-		if gmkw_exceptions[ar] then			-- Is the mob listed as a keyword exception?  if so, get correct keyword(s) from the exception table instead of guessing. 
+		if gmkw_exceptions[ar] then			-- Is the mob listed as a keyword exception?  if so, look up keywords from the exception table instead of guessing. 
 			if gmkw_exceptions[ar][s] then
-				guess = gmkw_exceptions[ar][s].kw	-- Special thanks to Redryn for being obtuse and aggravating me enough to add this.  Dick.
-			return guess
+				guess = gmkw_exceptions[ar][s].kw	-- Special thanks to Redryn for being obtuse and aggravating me enough that I added this.  Dick.
+				return guess
+			else
+				--
 			end
 		end
 
@@ -961,7 +1064,7 @@
 			local x,y = math.random(4,6), math.random(4,6)
 			guess = string.sub(s4[1], 1, x) .. " " .. string.sub(s4[#s4], 1, y)
 		elseif (#s4 == 1) then	-- mob name has one word
-			local x = math.random(1 + round_banker(len1*0.5), len1)
+			local x = math.random(2 + round_banker(len1*0.5), len1)
 			guess = string.sub(s4[1], 1, x)
 		else										-- Sometimes all of the mob words get deleted, if so just use original input.  In theory, if we reached this step
 			guess = s or "gmkw error in stage 4"  	-- then the input is non-nil and I've never seen it be "" ... so, if it errors it means Lua is propagating a nil
@@ -998,46 +1101,79 @@
 		local qt = quest_target
 		xcp_clear_target(true)
 		qw_reset(false)
-		full_mob_name = qt.mob
-		short_mob_name = gmkw(qt.mob, qt.arid)
-		if (bool == true) then
-			ColourNote("#FF5000", "", "\nYou are on a quest to kill: \n") 
-			ColourNote("#FF5000", "", "mob : ",
-					   "#00C040", "", qt.mob.." ")
-			ColourNote("#FF5000", "", "area: ",
-					   "#00C040", "", qt.areaName .. " ("..qt.arid..")")
-			ColourNote("#FF5000", "", "room: ",
-					   "#00C040", "", qt.room)
+		if (qt.mob == "missing") and (qt.arid == nil) and (qt.areaName == nil) and (qt.room == nil) then
+			qt.mob = GetVariable("mcvar_qt_mob")
+			qt.arid = GetVariable("mcvar_qt_arid")
+			qt.areaName = GetVariable("mcvar_qt_areaName")
+			qt.room = GetVariable("mcvar_qt_mob")
+			if (bool == true) then
+				ColourNote("#FF1010", "", "\n'Target quest mob' (xq) not done - the mob is currently dead, or you can't see it (check detects).")
+				ColourNote("#FF1010", "", "\n'The last known location, before it went missing, was:\n")
+				ColourNote("#FF5000", "", "mob : ",
+							   "#00C040", "", qt.mob.." ")
+				ColourNote("#FF5000", "", "area: ",
+							   "#00C040", "", qt.areaName .. " ("..qt.arid..")")
+				ColourNote("#FF5000", "", "room: ",
+							   "#00C040", "", qt.room)
+			end
+		else
+			full_mob_name = qt.mob
+			short_mob_name = gmkw(qt.mob, qt.arid)
+			SetVariable("mcvar_qt_mob", qt.mob)
+			SetVariable("mcvar_qt_arid", qt.arid)
+			SetVariable("mcvar_qt_areaName", qt.areaName)
+			SetVariable("mcvar_qt_room", qt.room)
+			if (bool == true) then
+				ColourNote("#FF5000", "", "\nYour quest mob is: \n") 
+				ColourNote("#FF5000", "", "mob : ",
+						   "#00C040", "", qt.mob.." ")
+				ColourNote("#FF5000", "", "area: ",
+						   "#00C040", "", qt.areaName .. " ("..qt.arid..")")
+				ColourNote("#FF5000", "", "room: ",
+						   "#00C040", "", qt.room)
+			end
 		end
 		Execute("xm "..qt.room.."|"..qt.arid)
 	end
 
 	function quest_status_gmcp(q)	-- sets quest status when you take a new quest, kill qmob, complete quest, etc.
-		if (q.action == "killed") then	-- you've just killed the target
-			quest_target.qstat = "3"
-		elseif (q.action == "start") then	-- you've just taken a new quest
+		if (q.action == "start") then									-- you've just taken a new quest
 			quest_target = { qstat = "2", mob = q.targ,	areaName = q.area, arid = areaNameXref[q.area], room = (string.gsub(q.room, "@[bcgmrwyBCDGMRWY]", "")) }
 			target_quest_mob(true)
-		elseif (q.action == "comp") or (q.action == "fail") or (q.action == "reset") then -- quest has ended (completed, failed, or reset)
-			quest_target = { qstat="1"}
-			xcp_clear_target(false)
-			qw_reset(false)
-		elseif (q.action == "ready") or (q.action == "timeout") then -- can take new quest immediately		
-			quest_target = { qstat="0"}
-		
-		-- in all of these, the action is "status"
-		elseif (q.action == "status" and q.target == "killed") then		-- on quest, qmob has been killed (do not confuse q.target with q.targ above!)
-			quest_target.qstat = "3"
-			ColourNote("#FF5000", "", "\nSearch and Destroy: You have already killed your quest target!\n")
 		elseif (q.action == "status" and q.targ and q.timer) then		-- on quest, qmob not yet killed
 			quest_target = { qstat="2", mob = q.targ, areaName = q.area, arid = areaNameXref[q.area], room = (string.gsub(q.room, "@[bcgmrwyBCDGMRWY]", "")) }
 			target_quest_mob(true)			
-		elseif (q.action == "status" and (q.wait)) then					-- off quest, must wait before requesting new
-			quest_target = { qstat="1"}
-			ColourNote("#FF5000", "", "\nSearch and Destroy: Not on quest - must wait before requesting new.\n")
-		elseif (q.action == "status" and q.status == "ready") then		-- off quest, can request new quest immediately
-			quest_target = { qstat="0"}
-			ColourNote("#FF5000", "", "\nSearch and Destroy: Not on quest - can request new quest immediately. \n")
+		else
+			if (q.action == "killed") then	-- you've just killed the target
+				quest_target.qstat = "3"
+			--elseif (q.action == "start") then	-- you've just taken a new quest
+			--	quest_target = { qstat = "2", mob = q.targ,	areaName = q.area, arid = areaNameXref[q.area], room = (string.gsub(q.room, "@[bcgmrwyBCDGMRWY]", "")) }
+			--	target_quest_mob(true)
+			elseif (q.action == "comp") or (q.action == "fail") or (q.action == "reset") then -- quest has ended (completed, failed, or reset)
+				quest_target = { qstat="1"}
+				xcp_clear_target(false)
+				qw_reset(false)
+			elseif (q.action == "ready") or (q.action == "timeout") then -- can take new quest immediately		
+				quest_target = { qstat="0"}
+			
+			-- in all of these, the action is "status"
+			elseif (q.action == "status" and q.target == "killed") then		-- on quest, qmob has been killed (do not confuse q.target with q.targ above!)
+				quest_target.qstat = "3"
+				ColourNote("#FF5000", "", "\nSearch and Destroy: You have already killed your quest target!\n")
+			--elseif (q.action == "status" and q.targ and q.timer) then		-- on quest, qmob not yet killed
+			--	quest_target = { qstat="2", mob = q.targ, areaName = q.area, arid = areaNameXref[q.area], room = (string.gsub(q.room, "@[bcgmrwyBCDGMRWY]", "")) }
+			--	target_quest_mob(true)			
+			elseif (q.action == "status" and (q.wait)) then					-- off quest, must wait before requesting new
+				quest_target = { qstat="1"}
+				ColourNote("#FF5000", "", "\nSearch and Destroy: Not on quest - must wait before requesting new.\n")
+			elseif (q.action == "status" and q.status == "ready") then		-- off quest, can request new quest immediately
+				quest_target = { qstat="0"}
+				ColourNote("#FF5000", "", "\nSearch and Destroy: Not on quest - can request new quest immediately. \n")
+			end
+			SetVariable("mcvar_qt_mob", "")
+			SetVariable("mcvar_qt_arid", "")
+			SetVariable("mcvar_qt_areaName", "")
+			SetVariable("mcvar_qt_room", "")
 		end
 	end
 	
@@ -1069,7 +1205,7 @@
 	
 	function cp_info_end()
 		player_on_cp = "yes"
-		win_circle_readout = "cp"
+		current_activity = "cp"
 		local t = cp_info_list
 		area_room_type = area_room_type_check(t)
 		print("cp type detection: ".. area_room_type .." (level "..cp_info_level..")\n")
@@ -1102,7 +1238,7 @@
 	
 	function cp_check_end(name, line, wildcards)
 		player_on_cp = "yes"
-		win_circle_readout = "cp"
+		current_activity = "cp"
 		build_main_target_list("cp", area_room_type)
 		if (xcp_retry_stat == 2) then						-- About xcp_retry_stat:
 			if (xcp_index == 0) or (xcp_index == 1) then
@@ -1122,7 +1258,7 @@
 		can_get_new_cp = "no"
 		local x = tonumber(gmcp("char.status.level"))
 		cp_info_level = x
-		win_circle_readout = "cp"
+		current_activity = "cp"
 		xg_draw_window()
 		if (noexp_onoff == "on") and (anex_tnl_cutoff > 0) then
 			ColourNote("#FF5000", "#000000", "Search and Destroy: Turning 'noexp' OFF (you have started a new CP)")
@@ -1151,7 +1287,11 @@
 	function player_is_on_cp()
 		player_on_cp = "yes"
 	end
-	
+
+	function do_cp_complete(name, line, wildcards) 
+		player_not_on_cp()
+	end
+		
 	function player_not_on_cp()
 		player_on_cp = "no"
 		EnableTriggerGroup ("trg_campaign", false)
@@ -1165,6 +1305,7 @@
 			main_target_list = {}
 			room_targets_ignored = {}
 			area_room_type = "none"
+			current_activity = "none"
 			xcp_index = 0
 			xg_draw_window()
 		end
@@ -1386,7 +1527,7 @@
 	
 	function player_is_on_gq()
 		player_on_gq = "yes"
-		win_circle_readout = "gq"
+		current_activity = "gq"
 	end
 
 	function player_not_on_gq()
@@ -1395,6 +1536,7 @@
 		EnableTrigger("trg_gqmsg_extended_time", false)
 		player_on_gq = "no"
 		area_room_type = "none"
+		current_activity = "none"
 		gq_info_list = {}
 		gq_check_list = {}
 		main_target_list = {}
@@ -1447,7 +1589,7 @@
 		elseif (cp_gq == "gq") then
 			list = gq_check_list
 		end
-		local db = assert(sqlite3.open(aard_mapper_database))
+		local db = assert(sqlite3.open(mapper_db_file))
 		for i,v in ipairs (list) do
 			local dead = v.is_dead
 			local cx
@@ -1503,7 +1645,7 @@
 			list = gq_check_list
 			level_taken = tonumber(gq_info_efflvl)
 		end
-		local db = assert(sqlite3.open(aard_mapper_database))
+		local db = assert(sqlite3.open(mapper_db_file))
 		for i,v in ipairs (list) do
 			local dead = v.is_dead
 			local cx -- color of link text
@@ -1667,14 +1809,14 @@
 		elseif (cp_list[index].link_type == "unknown") then -- or (cp_list[index].link_type == "unknown_room") then	-- abort if unknown
 			ColourNote("#FF5000", "", "\nSearch and Destroy: 'xcp' aborted - no mapper data for target (#" .. index .. ").\n")
 		else	-- everything is in order, so go to mob.
-			local state = char_state
-			if (state == "3") then
+			local ch_state = current_character_state
+			if (ch_state == "3") then
 				xcp_index = index
 				xg_draw_window()
 				xcp_goto_target(index)
-			elseif (state == "8") then
+			elseif (ch_state == "8") then
 				ColourNote("#FF5000", "", "\nNot while you're fighting!")
-			elseif (state == "12") then
+			elseif (ch_state == "12") then
 				ColourNote("#FF5000", "", "\nYou are already running!")
 			end
 		end
@@ -1747,10 +1889,56 @@
 			end
 			print("")
 	end
+
+-- [[  xcp next ]]
+	function xcp_next_cp()
+		if (xcp_next_onoff == "on") then
+			EnableTrigger("trg_xcp_next_cp", false)
+			EnableTrigger("trg_xcp_next_gq", false)
+			wait.make(function ()
+				wait.time (0.5)
+				if (gmcp("char.status.state") == "3") then
+					xcp_noarg()
+				end
+			end)
+		end
+	end
+
+	function xcp_next_gq()
+		if (xcp_next_onoff == "on") then
+			EnableTrigger("trg_xcp_next_cp", false)
+			EnableTrigger("trg_xcp_next_gq", false)
+			wait.make(function ()
+				wait.time (0.5)
+				if (gmcp("char.status.state") == "3") then
+					xcp_noarg()
+				end
+			end)
+		end
+	end
+	
+	function xcp_next_toggle(name, line, wildcards)
+		local opt = wildcards.option or ""
+		local onoff = xcp_next_onoff
+		if (opt == "on") then
+			onoff = "on"
+		elseif (opt == "off") then
+			onoff = "off"
+		else
+			if (onoff == "on") then
+				onoff = "off"
+			elseif (onoff == "off") then
+				onoff = "on"
+			end
+		end
+		xcp_next_onoff = onoff
+		SetVariable("mcvar_xcp_next_onoff", onoff)
+		ColourNote("#FF5000", "", "\n'Xcp next' is now " .. onoff .. ".\n")
+	end
 	
 -- [[  Goto area (xrt), goto room (go), goto next (nx), goto previous (nx-) ]]
-	local xrun_to_sql_uid =  "SELECT r.uid, r.name as room, r.area ".."FROM rooms r ".."WHERE r.area like %s ".."ORDER BY r.name "
-	local xrun_to_sql_name = "SELECT r.uid, r.name as room, r.area ".."FROM rooms r ".."INNER JOIN areas a ON a.uid = r.area ".."WHERE r.area like %s OR a.name like %s ".."ORDER BY r.name "
+	local xrun_to_sql_uid =  "SELECT r.uid, r.name as room, r.area " .. "FROM rooms r " .. "WHERE r.area like %s " .. "ORDER BY r.name "
+	local xrun_to_sql_name = "SELECT r.uid, r.name as room, r.area " .. "FROM rooms r " .. "INNER JOIN areas a ON a.uid = r.area " .. "WHERE r.area like %s OR a.name like %s " .. "ORDER BY r.name "
 
 	function xrun_to(name, line, wildcards)
 		local ri = current_room
@@ -1782,8 +1970,8 @@
 	end
 
 function goto_number(name, line, wildcards)
-		local state = char_state
-		if (state == "3") then
+		local ch_state = current_character_state
+		if (ch_state == "3") then
 			gotoIndex = tonumber(wildcards.index) or 1
 			if gotoList[gotoIndex] then
 				if (tonumber(gotoList[gotoIndex]) == nil) then
@@ -1797,9 +1985,9 @@ function goto_number(name, line, wildcards)
 			else
 				ColourNote("#FF5000", "", "Goto room result (go) aborted - No destination yet.")
 			end
-		elseif (state == "8") then
+		elseif (ch_state == "8") then
 			ColourNote("#FF5000", "", "\nNot while you're fighting!")
-		elseif (state == "12") then
+		elseif (ch_state == "12") then
 			ColourNote("#FF5000", "", "\nYou are already running!")
 		else
 			ColourNote("#FF5000", "", "\nGoto room result (go):  Can't do that now - you must be standing and ready.")
@@ -1807,8 +1995,8 @@ function goto_number(name, line, wildcards)
 	end
 	
 	function goto_next(name, line, wildcards)
-		local state = char_state
-		if (state == "3") then
+		local ch_state = current_character_state
+		if (ch_state == "3") then
 			if (next_room == nil) or (next_room == "") or (not tonumber(next_room)) then
 				ColourNote("#FF5000", "", "Goto next (nx) aborted - No data yet.")
 			else
@@ -1824,9 +2012,9 @@ function goto_number(name, line, wildcards)
 					ColourNote("#FF5000", "", "Goto next (nx) aborted - No more rooms.")
 				end
 			end
-		elseif (state == "8") then
+		elseif (ch_state == "8") then
 			ColourNote("#FF5000", "", "\nNot while you're fighting!")
-		elseif (state == "12") then
+		elseif (ch_state == "12") then
 			ColourNote("#FF5000", "", "\nYou are already running!")
 		else
 			ColourNote("#FF5000", "", "\nGoto next room (nx):  Can't do that now - you must be standing and ready.")
@@ -1834,8 +2022,8 @@ function goto_number(name, line, wildcards)
 	end	
 	
 	function goto_previous(name, line, wildcards)
-		local state = char_state
-		if (state == "3") then
+		local ch_state = current_character_state
+		if (ch_state == "3") then
 			if (next_room == nil) or (next_room == "") or (not tonumber(next_room)) then
 				ColourNote("#FF5000", "", "Goto previous (nx-) aborted - No data yet.")
 			else
@@ -1851,9 +2039,9 @@ function goto_number(name, line, wildcards)
 					ColourNote("#FF5000", "", "Goto previous (nx-) aborted - No more rooms.")
 				end
 			end
-		elseif (state == "8") then
+		elseif (ch_state == "8") then
 			ColourNote("#FF5000", "", "\nNot while you're fighting!")
-		elseif (state == "12") then
+		elseif (ch_state == "12") then
 			ColourNote("#FF5000", "", "\nYou are already running!")
 		else
 			ColourNote("#FF5000", "", "\nGoto previous room (nx-):  Can't do that now - you must be standing and ready.")
@@ -1862,8 +2050,8 @@ function goto_number(name, line, wildcards)
 	
 --	[[ Vidblain navigation ]]
 	function vidblain_nav(rmid, arid)
-		local st = char_state
-		vidblain_nav_tbl = { i=0, j=0, rmid=rmid, arid=arid, stat=st }
+		local ch_state = current_character_state
+		vidblain_nav_tbl = { i=0, j=0, rmid=rmid, arid=arid, stat=ch_state }
 		EnableTimer("execute_in_area_timer", false)
 		EnableTimer("vidblain_nav_timer", true)
 		Execute("mapper goto 11910") -- move to vidblain and enter the portal
@@ -1872,10 +2060,10 @@ function goto_number(name, line, wildcards)
 
 	function vidblain_nav_tick()
 		local ri = current_room
-		local st = char_state
+		local ch_state = current_character_state
 		local vnt = vidblain_nav_tbl
 		local eiat = execute_in_area_tbl
-		if (ri.arid ~= nil) and (st ~= nil) then
+		if (ri.arid ~= nil) and (ch_state ~= nil) then
 			if (ri.arid ~= "vidblain") then	-- not in vidblain yet
 				vnt.i = vnt.i + 1
 				if (vnt.i > 200) then
@@ -1885,7 +2073,7 @@ function goto_number(name, line, wildcards)
 					vidblain_nav_tbl = { i=0, j=0, rmid="", arid="", stat=1 }
 				end
 			else  -- arrived in vidblain proper
-				if (st == "3") and (st == vnt.stat) then  -- monitor char state for 3 ticks, if stable, start EIA timer and run to target area 
+				if (ch_state == "3") and (ch_state == vnt.stat) then  -- monitor char state for 3 ticks, if stable, start EIA timer and run to target area 
 					vnt.j = vnt.j + 1
 					if (vnt.j > 3) then
 						EnableTimer("vidblain_nav_timer", false) -- stop vidblain timer
@@ -1894,7 +2082,7 @@ function goto_number(name, line, wildcards)
 						vidblain_nav_tbl = { i=0, j=0, rmid="", arid="", stat=1 }
 					end
 				else
-					vnt.stat = st
+					vnt.stat = ch_state
 				end
 			end
 		end
@@ -1903,14 +2091,14 @@ function goto_number(name, line, wildcards)
 --	[[ Execute in Area ]]	
 	function execute_in_area(arid, func)	-- id is the process or function calling this one.
 		local ri = current_room
-		local st = char_state
+		local ch_state = current_character_state
 		local fn
 		if (type(func) == "function") then
 			fn = func
 		else
 			fn = function () end
 		end
-		execute_in_area_tbl = { i=0, j=0, arid=arid, f=fn, stat=st }
+		execute_in_area_tbl = { i=0, j=0, arid=arid, f=fn, stat=ch_state }
 		if (ri.arid == arid) then	-- in target area
 			func()
 			execute_in_area_tbl = { i=0, j=0, arid="", f="", stat=1 }
@@ -1924,9 +2112,9 @@ function goto_number(name, line, wildcards)
 	
 	function execute_in_area_tick()
 		local ri = current_room
-		local st = char_state
+		local ch_state = current_character_state
 		local eiat = execute_in_area_tbl
-		if (ri.arid ~= nil) and (st ~= nil) then
+		if (ri.arid ~= nil) and (ch_state ~= nil) then
 			if (ri.arid ~= eiat.arid) then
 				eiat.i = eiat.i + 1
 				if (eiat.i > 200) then
@@ -1936,7 +2124,7 @@ function goto_number(name, line, wildcards)
 					execute_in_area_tbl = { i=0, j=0, arid="", f="", stat=1 }
 				end
 			else
-				if (st == "3") and (st == eiat.stat) then
+				if (ch_state == "3") and (ch_state == eiat.stat) then
 					eiat.j = eiat.j + 1
 					if (eiat.j > 3) then
 						EnableTimer("execute_in_area_timer", false)
@@ -1944,8 +2132,8 @@ function goto_number(name, line, wildcards)
 						--eiat.f()
 					end
 				else
-					eiat.stat = st
-					if (st == "8") then
+					eiat.stat = ch_state
+					if (ch_state == "8") then
 						EnableTimer("execute_in_area_timer", false)	--ColourNote("#FF5000", "", "** execute-in-area:  in combat -> reduce timer rate")
 						DoAfterSpecial(1.5, [[ EnableTimer("execute_in_area_timer", true) ]], 12)
 					end
@@ -2140,17 +2328,17 @@ function goto_number(name, line, wildcards)
 		if (short_mob_name == nil) or (short_mob_name == "") or (short_mob_name == "-1") then
 			ColourNote("#FF5000", "", "\nSearch and Destroy: 'Quick-kill' has no target.  Use 'ht', 'qw', or 'xcp' to select a target.\n")
 		else
-			Send(quick_kill_command .. " " .. short_mob_name)
+			Send(quick_kill_command .. " '" .. short_mob_name .. "'")
 		end
 	end
 	
 	function xset_quick_kill_command(name, line, wildcards)		-- user-defined attack to use with qk/kk
 		if (wildcards.arg == "") then
-			ColourNote("#FF5000", "", "Search and Destroy: Quick-kill command currently set to: " .. quick_kill_command)
+			ColourNote("#FF5000", "", "Search and Destroy: Quick-kill command currently set to: '" .. quick_kill_command .. "'")
 		else
 			quick_kill_command = wildcards.arg
 			SetVariable("mcvar_quick_kill_command", quick_kill_command)
-			ColourNote("#FF5000", "", "Search and Destroy: Quick-kill command is now set to: " .. quick_kill_command)
+			ColourNote("#FF5000", "", "Search and Destroy: Quick-kill command is now set to: '" .. quick_kill_command .. "'")
 		end
 	end 
 	
@@ -2204,7 +2392,7 @@ function goto_number(name, line, wildcards)
 															fixsql(room), 
 															fixsql(like), 
 															fixsql(arid), fixsql(arid), fixsql(arid))
-			local db = assert(sqlite3.open(aard_mapper_database))
+			local db = assert(sqlite3.open(mapper_db_file))
 			local results = {}
 			local roomid_list = {}
 			for row in db:nrows(select) do
@@ -2617,7 +2805,7 @@ function goto_number(name, line, wildcards)
 		if (xset_vidblain_onoff == "on") and (level < xset_vidblain_level) then
 			--local worldPath = GetInfo(66) .. Trim(sanitize_filename(WorldName()))
 			--local db = assert(sqlite3.open(worldPath .. ".db"))
-			local db = assert(sqlite3.open(aard_mapper_database))
+			local db = assert(sqlite3.open(mapper_db_file))
 			local select = string.format (is_vidblain_area_sql, fixsql(roomid))
 			local ar
 			for row in db:nrows(select) do
@@ -2639,8 +2827,10 @@ function goto_number(name, line, wildcards)
 	function simulate_cp(name, line, wildcards)
 		if (wildcards.type == "") then
 			area_room_type = "area"
+			current_activity = "cp"
 		else
 			area_room_type = wildcards.type
+			current_activity = "cp"
 		end
 		local time_check = os.clock()					-- prevent double cp checks from different plugins
 		if ((time_check - last_cp_check) < 1.0) then
@@ -2705,7 +2895,7 @@ function goto_number(name, line, wildcards)
 	function get_notes(arid, roomid, text_only)
 		--local worldPath = GetInfo(66)..Trim(sanitize_filename(WorldName()))
 		--local db = assert(sqlite3.open(worldPath .. ".db"))
-		local db = assert(sqlite3.open(aard_mapper_database))
+		local db = assert(sqlite3.open(mapper_db_file))
 		local sql =  " SELECT b.uid, b.notes "
 		sql = sql .. " FROM bookmarks b "
 		if (arid ~= nil) then
@@ -2737,7 +2927,7 @@ function goto_number(name, line, wildcards)
 	end
 	
 	function getAreaIdFromName(name)
-		local db = assert(sqlite3.open(aard_mapper_database))
+		local db = assert(sqlite3.open(mapper_db_file))
 		local sql =  "SELECT uid FROM areas WHERE name = %s"
 		for row in db:nrows(string.format (sql, fixsql(name))) do
 			db:close_vm()
@@ -2748,7 +2938,7 @@ function goto_number(name, line, wildcards)
 	end
 	
 	function getAreaNameFromId(arid)
-		local db = assert(sqlite3.open(aard_mapper_database))
+		local db = assert(sqlite3.open(mapper_db_file))
 		local sql =  "SELECT name FROM areas WHERE uid = %s"
 		for row in db:nrows(string.format (sql, fixsql(arid))) do
 			db:close_vm()
@@ -2759,7 +2949,7 @@ function goto_number(name, line, wildcards)
 	end
 
 	function getAreaFromRoomId(room_id)
-		local db = assert(sqlite3.open(aard_mapper_database))
+		local db = assert(sqlite3.open(mapper_db_file))
 		local sql =  "SELECT area FROM rooms WHERE uid = %s"
 		for row in db:nrows(string.format(sql, fixsql(room_id))) do
 			db:close_vm()
@@ -2770,7 +2960,7 @@ function goto_number(name, line, wildcards)
 	end
 	
 	function getAreaUid(name)
-		local db = assert(sqlite3.open(aard_mapper_database))
+		local db = assert(sqlite3.open(mapper_db_file))
 		local sql =  "SELECT uid FROM areas WHERE name = %s order by uid "
 		local areas = {}
 		local index = 0
@@ -2799,7 +2989,7 @@ function goto_number(name, line, wildcards)
 	end
 	
 	function ExecSql (name, line, wildcards)
-		local db = assert(sqlite3.open(aard_mapper_database))
+		local db = assert(sqlite3.open(mapper_db_file))
 		Note("executing " .. wildcards.sql)
 	--	dbcheck (db:execute (fixsql(wildcards.sql)))
 		db:execute(fixsql(wildcards.sql))
@@ -2906,13 +3096,13 @@ function goto_number(name, line, wildcards)
 					false)						-- not unicode
 		if (win_hotspots["hsDrag1"] == nil) then	-- make the title bar draggable
 			win_hotspots["hsDrag1"] = WindowAddHotspot(win, "hsDrag1", 0, 0, win_width-1, 16, -- hotspot id, rectangle (left, top, right, bottom)
-						"mouseover", "cancelmouseover", "mousedown_drag", "cancelmousedown", "mouseup_drag", 
+						"", "", "mousedown_drag", "", "mouseup_drag",
 						"Left click = Drag title bar to move\nRight click = Send window to front/back", miniwin.cursor_arrow, 0)
 			WindowDragHandler(win, "hsDrag1", "dragmove", "dragrelease", 0)
 		end
 		
 		draw_b1_action_buttons(47, 20)	-- draw xcp, go, etc. buttons
-		draw_circle_readout(6, 22)		-- add circle text/level readout
+		draw_circle_readout(5, 20)		-- add circle text/level readout
 		draw_noexp_readout(206, 22)	-- add noexp on/off and TNL indicator
 		draw_resize_tag()
 		xg_show_target_links()
@@ -2926,8 +3116,9 @@ function goto_number(name, line, wildcards)
   --[[ 4 ]]	["hsNX"]  = { L= 93, text= "nx", tdx=7, tdy=3, exec1=      "nx", exec2=     "nx-", tooltip="Left click = goto next\nRight click = goto prev" },
   --[[ 5 ]]	["hsQS"]  = { L=124, text= "qs", tdx=8, tdy=3, exec1=      "qs", exec2=      "qs", tooltip="Quick-scan for current target (cp, quest, ht, qw)" },
   --[[ 6 ]]	["hsQW"]  = { L=219, text= "qw", tdx=5, tdy=3, exec1=      "qw", exec2=     "qwx", tooltip="Left click = Quick-where\nRight click = Quick-where exact" },
-  --[[ 7 ]]	["hsHT"]  = { L=248, text= "ht", tdx=9, tdy=3, exec1=      "ht", exec2=     "hta", tooltip="Left click = Do hunt trick\nRight click = Cancel hunt trick" }, 	
-  --[[ 8 ]]	["hsREF"] = { L=277, text="ref", tdx=6, tdy=3, exec1="xgui ref", exec2="xgui ref", tooltip="Refresh target list (cp check)" } }
+  --[[ 7 ]]	["hsHT"]  = { L=248, text= "ht", tdx=9, tdy=3, exec1=      "ht", exec2=     "hta", tooltip="Left click = Do hunt trick\nRight click = Cancel hunt trick" },
+  --[[ 8 ]]	["hsREF"] = { L=277, text="ref", tdx=6, tdy=3, exec1="xgui ref", exec2="xgui rel", tooltip="Left click = Refresh target list - cp (gq) check\nRight click = Reload target data - cp (gq) info" } }
+	
 	function draw_b1_action_buttons(left, top)
 		local b1 = button_1_list
 		for hs,b in pairs (b1) do
@@ -2964,99 +3155,105 @@ function goto_number(name, line, wildcards)
 				--"", "", "", "", "",	-- "mouseover", "cancelmouseover", "mousedown", "cancelmousedown", "mouseup"
 			--	"" .. (tooltip or text), miniwin.cursor_arrow, 0)	-- Tooltip text, cursor shape (hand)
 	end
+
+		
+
+		
+	local win_circle_readout_vars = {
+			["cp"] 	 = { cc, cc1="r", cc2y="", tc1="", tc2="", tdx="", tdy="", text="" }, 
+			["gq"] 	 = { cc1n="", cc2n="", cc1y="", cc2y="", tc1="", tc2="", tdx="", tdy="", text="" },
+			["init"] = { cc1n="", cc2n="", cc1y="", cc2y="", tc1="", tc2="", tdx="", tdy="", text="" },
+			["none"] = { cc1n="", cc2n="", cc1y="", cc2y="", tc1="", tc2="", tdx="", tdy="", text="" }, }
+			
 	
-	function mouseup_b1(flags, hotspot_id)	-- when mouse button is released, redraw the buttons to normal appearance.
-		local b = button_1_list[hotspot_id]
-		local click = ((bit.band(flags, 0x20) == 0) and "L" or "R")
-		local left = WindowHotspotInfo(win, hotspot_id, 1)
-		local top = WindowHotspotInfo(win, hotspot_id, 2)
-		draw_button_1_A(left, top, b.text, hotspot_id, b.tooltip, b.tdx, b.tdy)
-		Redraw()
-		Execute(((click == "L") and b.exec1 or b.exec2))
-	end
-	
-	function mousedown_b1(flags, hotspot_id)	-- when mouse button is pressed:  
-		local b = button_1_list[hotspot_id]
-		local click = ((bit.band(flags, 0x20) == 0) and "L" or "R")
-		local left = WindowHotspotInfo(win, hotspot_id, 1)
-		local top = WindowHotspotInfo(win, hotspot_id, 2)
-		draw_button_1_B(left, top, b.text, hotspot_id.."2", "", b.tdx, b.tdy)
-		Redraw()
-	end
-	
-	function cancelmousedown_b1(flags, hotspot_id)
-		local b = button_1_list[hotspot_id]
-		local click = ((bit.band(flags, 0x20) == 0) and "L" or "R")
-		local left = WindowHotspotInfo(win, hotspot_id, 1)
-		local top = WindowHotspotInfo(win, hotspot_id, 2)
-		draw_button_1_A(left, top, b.text, hotspot_id, b.tooltip, b.tdx, b.tdy)
-		Redraw()
-	end
+	--local win_circle_readout_colors = { g1=0x30C000, g2=0x004000, r1=0x0040F0, r2=0x000080, u1=0xC08800, u2=0x403000, v1=0xC000C0, v2=0x400040 }
+	local win_circle_border_colors = { g={0x30C000,0x004000}, r={0x0040F0,0x000080}, u={0xC08800,0x403000}, v={0xC000C0,0x400040} }
+	local win_circle_text_colors
 	
 	function draw_circle_readout(left, top)
+		local level, ar_rm, get_new = cp_info_level, area_room_type, can_get_new_cp
+		local activity = current_activity
 		local width, height = 36, 36
-		local level = cp_info_level
-		local ar_rm = area_room_type
-		local get_new = can_get_new_cp
-		local cx1,cy1 = left, top
-		local cx2,cy2 =  (left + width), (top+height)
-		local bgcolor = 0x000000
-		local g1, g2 = 0x30C000, 0x004000	-- green, circle
-		local r1, r2 = 0x0040F0, 0x000080	-- red, circle
-		local u1, u2 = 0xC08800, 0x403000	-- blue, circle
-		local v1, v2 = 0xC000C0, 0x400040	-- violet, circle
+		local cx1,cy1 = left+1, top+1; local cx2,cy2 = (cx1+width), (cy1+height)
+		local g1,g2, r1,r2, u1,u2, v1,v2 = 0x30C000,0x004000, 0x0040F0,0x000080, 0xC08800,0x403000, 0xC000C0,0x400040	-- green, red, blue, violet
+		local tdx, tdy = 6, 8
 		local circle_color_1, circle_color_2, text_color, text
-		local tdx, tdy = 0, 8
-		local font = "cplevel"
-		if (ar_rm == "none") then	-- player not on cp
-			circle_color_1 = (get_new == "yes") and g1 or r1
-			circle_color_2 = (get_new == "yes") and g2 or r2
-			text_color_1 = (get_new == "yes") and 0x0050FF or 0x0070FF
-			text_color_2 = 0x000040
-			tdx = 6
-			tdy = 8
-			text = "off"
-		elseif (ar_rm == "init") then		-- plugin is loading, no info yet
-			circle_color_1 = u1
-			circle_color_2 = u2
-			text_color_1 = 0xB0B0B0
-			text_color_2 = 0x080808
-			tdx = 4
-			tdy = 10
-			text = "init"
-			font = "circ2"				-- show "init" in circle while plugin installs
-		else							-- player is on cp or gq
-			if (win_circle_readout == "gq") then
-				circle_color_1 = v1
-				circle_color_2 = v2
-				text_color_1 = 0xA0FFFF
-				text_color_2 = 0x0C1830
-				text = "gq"
-				tdx = 10
-				tdy = 6
-			elseif (win_circle_readout == "cp") then
-				circle_color_1 = (get_new == "yes") and g1 or r1
-				circle_color_2 = (get_new == "yes") and g2 or r2
-				text_color_1 = 0xA0FFFF
-				text_color_2 = 0x0C1830
-				text = tostring(level)
-				local llen = string.len(text)
-				if (llen == 3) then tdx = 6
-				elseif (llen == 2) then tdx = 10
-				elseif (llen == 1) then tdx = 14
-				else
-					tdx = 6
-					text = "err"
-				end
+		local font = "circ1"
+		if(activity == "cp") then
+			circle_color_1 = (get_new == "yes") and g1 or r1; circle_color_2 = (get_new == "yes") and g2 or r2
+			text_color_1 = 0xA0FFFF; text_color_2 = 0x0C1830
+			text = tostring(level)
+			local llen = string.len(text)
+			--if (llen == 3) then tdx = 6
+			if (llen == 2) then tdx = 10
+			elseif (llen == 1) then tdx = 14
 			end
-		end 
-		WindowCircleOp(win, 1, cx1+1, cy1+1, cx2-1, cy2-1, circle_color_2, 0, 2, bgcolor, 1)	-- inner circle (dark)
-		WindowCircleOp(win, 1, cx1-1, cy1-1, cx2+1, cy2+1, circle_color_2, 0, 2, bgcolor, 1)	-- outer circle (dark)
-		WindowCircleOp(win, 1, cx1, cy1, cx2, cy2, circle_color_1, 0, 2, bgcolor, 1)			-- main circle (bright)
-		local tx1,tx2,ty1,ty2 = (left+tdx), (left+width), (top+tdy), (top+height+tdy)
-		WindowText(win, font, string.format("%s", text), tx1+1, ty1, tx2+1, ty2, text_color_2, false)	
-		WindowText(win, font, string.format("%s", text), tx1+2, ty1+1, tx2+2, ty2+1, text_color_2, false)
-		WindowText(win, font, string.format("%s", text), tx1, ty1, tx2, ty2, text_color_1, false)	
+		elseif (activity == "none") then
+			circle_color_1 = (get_new == "yes") and g1 or r1; circle_color_2 = (get_new == "yes") and g2 or r2			
+			text_color_1 = (get_new == "yes") and 0x0050FF or 0x0070FF; text_color_2 = 0x000040
+			text = "off"
+		elseif (activity == "gq") then
+			circle_color_1 = v1; circle_color_2 = v2
+			text_color_1 = 0xA0FFFF; text_color_2 = 0x0C1830
+			text = "gq"
+			tdx = 10; tdy = 6			
+		elseif (activity == "init") then
+			circle_color_1 = u1; circle_color_2 = u2
+			text_color_1 = 0xB0B0B0; text_color_2 = 0x080808
+			text = "init"
+			font = "circ2"
+			tdx = 4; tdy = 10	
+		end
+		
+		--if (ar_rm == "none") then	-- player not on cp
+		--	circle_color_1 = (get_new == "yes") and g1 or r1
+		--	circle_color_2 = (get_new == "yes") and g2 or r2
+		--	text_color_1 = (get_new == "yes") and 0x0050FF or 0x0070FF
+		--	text_color_2 = 0x000040
+		--	tdx = 6
+		--	tdy = 8
+		--	text = "off"
+		--elseif (ar_rm == "init") then		-- plugin is loading, no info yet
+		--	circle_color_1 = u1
+		--	circle_color_2 = u2
+		--	text_color_1 = 0xB0B0B0
+		--	text_color_2 = 0x080808
+		--	tdx = 4
+		--	tdy = 10
+		--	text = "init"
+		--	font = "circ2"				-- show "init" in circle while plugin installs
+	--	else							-- player is on cp or gq
+	--		if (current_activity == "gq") then
+	--			circle_color_1 = v1
+	--			circle_color_2 = v2
+	--			text_color_1 = 0xA0FFFF
+	--			text_color_2 = 0x0C1830
+	--			text = "gq"
+	--			tdx = 10
+	--			tdy = 6
+	--		elseif (current_activity == "cp") then
+	--			circle_color_1 = (get_new == "yes") and g1 or r1
+	--			circle_color_2 = (get_new == "yes") and g2 or r2
+	--			text_color_1 = 0xA0FFFF
+	--			text_color_2 = 0x0C1830
+	--			text = tostring(level)
+	--			local llen = string.len(text)
+	--			if (llen == 3) then tdx = 6
+	--			elseif (llen == 2) then tdx = 10
+	--			elseif (llen == 1) then tdx = 14
+	--			else
+	--				tdx = 6
+	--				text = "err"
+	--			end
+	--		end
+	--	end 
+		WindowCircleOp(win, 1, cx1+1, cy1+1, cx2-1, cy2-1, circle_color_2, 0, 2, win_bgcolor, 1)	-- inner circle (dark)
+		WindowCircleOp(win, 1, cx1-1, cy1-1, cx2+1, cy2+1, circle_color_2, 0, 2, win_bgcolor, 1)	-- outer circle (dark)
+		WindowCircleOp(win, 1, cx1, cy1, cx2, cy2, circle_color_1, 0, 2, win_bgcolor, 1)			-- main circle (bright)
+		local tx1,tx2, ty1,ty2 = (cx1+tdx),(cx2), (cy1+tdy),(cy2)
+		WindowText(win, font, string.format("%s", text), tx1+1, ty1, tx2+1, ty2, text_color_2, false)		-- text shadow effect
+		WindowText(win, font, string.format("%s", text), tx1+2, ty1+1, tx2+2, ty2+1, text_color_2, false)	-- text shadow effect
+		WindowText(win, font, string.format("%s", text), tx1, ty1, tx2, ty2, text_color_1, false)			-- actual text and color
 	end
 	
 	function draw_noexp_readout(left, top)
@@ -3114,6 +3311,8 @@ function goto_number(name, line, wildcards)
 			WindowMoveHotspot(win, "hsResize", w-rts, h-rts, 0, 0)
 		end
 	end
+
+
 	
 	function xg_show_target_links()
 		for i,v in ipairs (win_target_hotspots) do
@@ -3169,57 +3368,34 @@ function goto_number(name, line, wildcards)
 							eventHandler, "", miniwin.cursor_arrow, 0)	-- "mouseup", tooltip, cursor type
 		end
 	end
-	
-	function xgui_RefreshLinks()
-		do_cp_check()
-		mouseup_drag(0, "hsMaximize")
+
+-- [[ GUI window mouse click functions (buttons, links, etc.) ]]
+	function mouseup_b1(flags, hotspot_id)	-- when mouse button is released, redraw the buttons to normal appearance.
+		local b = button_1_list[hotspot_id]
+		local click = ((bit.band(flags, 0x20) == 0) and "L" or "R")
+		local left = WindowHotspotInfo(win, hotspot_id, 1)
+		local top = WindowHotspotInfo(win, hotspot_id, 2)
+		draw_button_1_A(left, top, b.text, hotspot_id, b.tooltip, b.tdx, b.tdy)
+		Redraw()
+		Execute(((click == "L") and b.exec1 or b.exec2))
 	end
 	
-	local lastRefresh = 0
-	function ResizeMoveCallback()
-		local screen_width = GetInfo(281) - 100
-		local screen_height = GetInfo(280) - 60
-		if (GetPluginVariable("c293f9e7f04dde889f65cb90", "lock_down_miniwindows") == "1") then
-			return
-		end
-		local x, y = WindowInfo (win, 17), WindowInfo (win, 18)
-		win_width = win_width + x - startx
-		startx = x
-		if (win_width < win_width_min) then
-			win_width = win_width_min
-			startx = windowinfo.window_left+win_width
-		elseif (win_width > screen_width) then
-			win_width = screen_width
-			startx = windowinfo.window_left+win_width
-		end
-		win_height = win_height + y - starty
-		starty = y
-		if (win_height < win_height_min) then
-			win_height = win_height_min
-			starty = windowinfo.window_top+win_height
-		elseif (win_height > screen_height) then
-			win_height = screen_height
-			starty = windowinfo.window_top+win_height
-		end
-		WindowResize(win, win_width, win_height, win_bgcolor)
-		local freq = 90
-		local t = utils.timer()
-		if ((t - lastRefresh) > (1/freq)) then	-- redraw rate while resizing (per second)
-			xg_draw_window()
-			lastRefresh = t
-		end
+	function mousedown_b1(flags, hotspot_id)	-- when mouse button is pressed:  
+		local b = button_1_list[hotspot_id]
+		local click = ((bit.band(flags, 0x20) == 0) and "L" or "R")
+		local left = WindowHotspotInfo(win, hotspot_id, 1)
+		local top = WindowHotspotInfo(win, hotspot_id, 2)
+		draw_button_1_B(left, top, b.text, hotspot_id.."2", "", b.tdx, b.tdy)
+		Redraw()
 	end
 	
-	function ResizeReleaseCallback()
-		win_state = "max"
-		w = win_width
-		h = win_height
-		WindowDeleteHotspot(win, "hsDrag1")
-		win_hotspots["hsDrag1"] = WindowAddHotspot(win, "hsDrag1", 0, 0, w-1, 16, -- hotspot id, rectangle (left, top, right, bottom)
-					"", "", "mousedown_drag", "", "mouseup_drag", --mouseover, cancelmouseover, mousedown_drag, cancelmousedown, mouseup_drag
-					"Left click = Drag title bar to move\nRight click = Send window to front/back", miniwin.cursor_arrow, 0)	
-		WindowDragHandler(win, "hsDrag1", "dragmove", "dragrelease", 0)
-		xg_draw_window()
+	function cancelmousedown_b1(flags, hotspot_id)
+		local b = button_1_list[hotspot_id]
+		local click = ((bit.band(flags, 0x20) == 0) and "L" or "R")
+		local left = WindowHotspotInfo(win, hotspot_id, 1)
+		local top = WindowHotspotInfo(win, hotspot_id, 2)
+		draw_button_1_A(left, top, b.text, hotspot_id, b.tooltip, b.tdx, b.tdy)
+		Redraw()
 	end
 	
 	function mousedown_resize_window(flags, hotspot_id)
@@ -3268,7 +3444,88 @@ function goto_number(name, line, wildcards)
 			xcp_arg("", "", {index=hotspot_id})
 		end
 	end
+
+--	[[ Window dragging / moving ]]
+	function dragmove(flags, hotspot_id)
+		if (bit.band(flags, 0x20) == 0) then
+			win_pos_x = WindowInfo(win, 17) -- - 50
+			win_pos_y = WindowInfo(win, 18) -- - 7
+			local delta_x = win_pos_x - win_dragmove_start_x
+			local delta_y = win_pos_y - win_dragmove_start_y
+			local max_x = GetInfo(281) - 100
+			local max_y = GetInfo(280) - 60
+			if (delta_x <= 1) then 			-- Prevents window from leaving the screen.  The bug that got me started on all this.  
+				delta_x = 1
+			elseif (delta_x >= max_x) then 	
+				delta_x = max_x
+			end
+			if (delta_y <= 1) then 			
+				delta_y = 1
+			elseif (delta_y >= max_y) then 	
+				delta_y = max_y
+			end
+			WindowPosition(win, delta_x, delta_y, miniwin.pos_stretch_to_view, miniwin.create_absolute_location) -- move window to new location
+		else
+			return
+		end
+	end
+
+	function dragrelease(flags, hotspot_id)
+	--  print ("mouse drag release for " .. hotspot_id)
+	--  print ("released at position", WindowInfo (win, 17), WindowInfo (win, 18))
+	end
+
+--	[[ Window resize functions ]]
 	
+	local lastRefresh = 0
+	
+	function ResizeMoveCallback()
+		local screen_width = GetInfo(281) - 100
+		local screen_height = GetInfo(280) - 60
+		if (GetPluginVariable("c293f9e7f04dde889f65cb90", "lock_down_miniwindows") == "1") then
+			return
+		end
+		local x, y = WindowInfo (win, 17), WindowInfo (win, 18)
+		win_width = win_width + x - startx
+		startx = x
+		if (win_width < win_width_min) then
+			win_width = win_width_min
+			startx = windowinfo.window_left+win_width
+		elseif (win_width > screen_width) then
+			win_width = screen_width
+			startx = windowinfo.window_left+win_width
+		end
+		win_height = win_height + y - starty
+		starty = y
+		if (win_height < win_height_min) then
+			win_height = win_height_min
+			starty = windowinfo.window_top+win_height
+		elseif (win_height > screen_height) then
+			win_height = screen_height
+			starty = windowinfo.window_top+win_height
+		end
+		WindowResize(win, win_width, win_height, win_bgcolor)
+		local freq = 90
+		local t = utils.timer()
+		if ((t - lastRefresh) > (1/freq)) then	-- redraw rate while resizing (per second)
+			xg_draw_window()
+			lastRefresh = t
+		end
+	end
+	
+	function ResizeReleaseCallback()
+		win_state = "max"
+		w = win_width
+		h = win_height
+		WindowDeleteHotspot(win, "hsDrag1")
+		win_hotspots["hsDrag1"] = WindowAddHotspot(win, "hsDrag1", 0, 0, w-1, 16, -- hotspot id, rectangle (left, top, right, bottom)
+					"", "", "mousedown_drag", "", "mouseup_drag", --mouseover, cancelmouseover, mousedown_drag, cancelmousedown, mouseup_drag
+					"Left click = Drag title bar to move\nRight click = Send window to front/back", miniwin.cursor_arrow, 0)	
+		WindowDragHandler(win, "hsDrag1", "dragmove", "dragrelease", 0)
+		xg_draw_window()
+	end
+
+--	[[ Window right click menu]]
 	function right_click_menu()
 		menustring = ("Bring To Front|Send To Back|Collapse Window|Expand Window")
 		result = WindowMenu (win,
@@ -3293,44 +3550,25 @@ function goto_number(name, line, wildcards)
 		end
 	end
 	
-	function bringToFront(name, line, wildcards)
-		CallPlugin(plugin_id_z_order,"boostMe", win)
-	end
-	
-	function do_cp_complete(name, line, wildcards) 
-		player_not_on_cp()
-	end
-	
-	function dragmove(flags, hotspot_id)
-		if (bit.band(flags, 0x20) == 0) then
-			win_pos_x = WindowInfo(win, 17) -- - 50
-			win_pos_y = WindowInfo(win, 18) -- - 7
-			local delta_x = win_pos_x - win_dragmove_start_x
-			local delta_y = win_pos_y - win_dragmove_start_y
-			local max_x = GetInfo(281) - 100
-			local max_y = GetInfo(280) - 60
-			if (delta_x <= 1) then 			-- Prevents window from leaving the screen.  The bug that got me started on all this.  
-				delta_x = 1
-			elseif (delta_x >= max_x) then 	
-				delta_x = max_x
-			end
-			if (delta_y <= 1) then 			
-				delta_y = 1
-			elseif (delta_y >= max_y) then 	
-				delta_y = max_y
-			end
-			WindowPosition(win, delta_x, delta_y, miniwin.pos_stretch_to_view, miniwin.create_absolute_location) -- move window to new location
+	function xgui_RefreshLinks()
+		if current_activity == "gq" then
+			do_gq_check()
 		else
-			return
+			do_cp_check()
 		end
+		mouseup_drag(0, "hsMaximize")
 	end
 	
-	function dragrelease(flags, hotspot_id)
-	--  print ("mouse drag release for " .. hotspot_id)
-	--  print ("released at position", WindowInfo (win, 17), WindowInfo (win, 18))
+	function xgui_ReloadLinks()
+		if current_activity == "gq" then
+			do_gq_info()
+		else
+			do_cp_info()
+		end
+		mouseup_drag(0, "hsMaximize")	
 	end
-	
-		function xset_ToggleWindowDisplay(name, line, wildcards)
+
+	function xset_ToggleWindowDisplay(name, line, wildcards)
 		local arg = wildcards.onoff
 		if (arg == "on") or (arg == "show") or (arg == "1") then
 			WindowShow(win, true)
@@ -3460,11 +3698,11 @@ function goto_number(name, line, wildcards)
 	   CallPlugin(plugin_id_gmcp_handler, "GMCP_send", s)
 	end
 		
-	function int(d)
-		if not tonumber(d) then
+	function int(n)
+		if not tonumber(n) then
 			return
 		else
-			return math.floor(d)
+			return math.floor(n)
 		end
 	end
 	
@@ -3540,7 +3778,8 @@ function goto_number(name, line, wildcards)
 		local t = tonumber(gmcp("char.base.tier"))
 		return (l + 10*t)
 	end
-	
+
+
 -- [[ Random stuff that doesn't fit anywhere else (?) ]]	
 	function xtest_roomhist()
 		ColourNote("#00FFFF", "", "\ni: 0    r: " .. string.format("%-5s", room_history[0].rmid) .. "  a: " .. room_history[0].arid)	
@@ -3551,7 +3790,7 @@ function goto_number(name, line, wildcards)
 	end
 	
 	function xtest_areadata()
-		local db = assert(sqlite3.open(aard_mapper_database))
+		local db = assert(sqlite3.open(mapper_db_file))
 		local sql = "SELECT uid, name FROM areas"
 		local ar = { }
 		local dasr = areaDefaultStartRooms	-- default start rooms
@@ -3595,19 +3834,88 @@ function goto_number(name, line, wildcards)
 		tprint(t)
 	end
 	
---[[local plugintick = 0
-	local plugintick_t1 = 0
-	local plugintick_t2 = 0
-	function OnPluginTick()
-		plugintick_t1 = plugintick_t2
-		plugintick_t2 = utils.timer()
-		plugintick = plugintick + 1
-		local delta_t = plugintick_t2 - plugintick_t1 --string.format("%.6f", plugintick_t2 - plugintick_t1)
-		local hz = string.format("%-2.2f", 1 / delta_t)
-		--local delay_factor = string.format("%.3f", delta_t / 0.04)
-		local out = plugintick .. ":  " .. hz .. "   " .. delta_t .. "   " --.. delay_factor
-		print(out)
-	end ]]
+	function xmap_rooms_linking_here(name, line, wildcards)
+		local room_id = tonumber(wildcards.room_id) or tonumber(current_room.rmid) or -1
+		local r1 = {}
+		local list = {}
+		local Q1 = string.format("SELECT uid, name, area FROM rooms WHERE uid = %s ", fixsql(room_id))
+		local Q2 = string.format("SELECT exits.dir as edir, exits.fromuid as efrom, exits.touid as eto, rooms.name as name, rooms.area as arid FROM exits,rooms WHERE exits.touid = %s AND rooms.uid = exits.fromuid ORDER BY efrom ASC ", fixsql(room_id), fixsql(room_id))
+		local db = assert(sqlite3.open(mapper_db_file))
+		for row in db:nrows(Q1) do
+			r1 = { rmid = row.uid, arid = row.area, roomname = row.name }
+		end
+		for row in db:nrows(Q2) do
+			local ru = string.format("%5s", row.efrom)
+			list[ru] = {
+				roomname = row.name,
+				arid = row.arid,
+				exit_dir = row.edir, }
+		end
+		db:close_vm()
+		print("\n" .. "Rooms linking to " .. r1.rmid .. ": " .. r1.roomname .. " (" .. r1.arid .. ")" .. "\n")
+		for k,v in spairs (list) do
+			print(k .. ": " .. v.roomname .. " (" .. v.arid .. ") - " .. v.exit_dir)
+		end
+		print("")
+	end
+	
+	function xtest_loadroom(name, line, wildcards)
+		local ri = current_room
+		local room_id = tonumber(wildcards.room_id) or tonumber(ri.rmid) or -1
+		local roomdata = {}
+		local sql_roomdata = "SELECT uid, name, area, info, noportal, norecall, ignore_exits_mismatch " .. "FROM rooms " .. "WHERE uid = %s "
+		local sql_exitrow = "SELECT dir, fromuid, touid, level " .. "FROM exits " .. "WHERE fromuid = %s "
+		local sel_roomdata = string.format(sql_roomdata, fixsql(room_id))
+		local sel_exits = string.format(sql_exitrow, fixsql(room_id))
+		local db_results_found = false
+		local db = assert(sqlite3.open(mapper_db_file))
+		for row in db:nrows(sel_roomdata) do
+			roomdata = {
+				roomid = row.uid,
+				roomname = row.name or "-no room name-",
+				arid = row.area or "-no area-",
+				--building = row.building,
+				--terrain = row.terrain,
+				info = row.info or "-no info-",
+				--notes = row.notes,
+				--x = row.x or 0,
+				--y = row.y or 0,
+				--z = row.z or 0,
+				noportal = row.noportal or 0,
+				norecall = row.norecall or 0,
+				exits = {},
+				exit_locks = {},
+				ig_ex_mis = (row.ignore_exits_mismatch == 1)
+				}
+			for exitrow in db:nrows(sel_exits) do
+				roomdata.exits[exitrow.dir] = tostring(exitrow.touid)
+				roomdata.exit_locks[exitrow.dir] = tostring(exitrow.level)
+			end -- for each ex
+		end
+		db:close_vm()
+		
+		if not (roomdata.roomid) then
+			roomdata = {
+				roomid = tostring(room_id),
+				roomname = "-1",
+				arid = "-1",
+				info = "none",
+				noportal = 0,
+				norecall = 0,
+				exits = {},
+				exit_locks = {},
+				ig_ex_mis = false
+				}
+		end
+		table.insert(xtest_loadroom_table, roomdata)
+		tprint(xtest_loadroom_table)
+		print("")
+	end
+
+	function xtest_popmsg(name, line, wildcards)
+	
+	end
+	
 ]]>
 </script>
 <triggers>
@@ -3815,6 +4123,27 @@ function goto_number(name, line, wildcards)
 		script=""
 		enabled="y" regexp="y" sequence="100" keep_evaluating="y" omit_from_output="n" send_to="12" > </trigger>
 
+<!-- Xcp next -->
+	<trigger match="^Congratulations, that was one of your CAMPAIGN mobs\!$"
+		name="trg_xcp_next_cp_mob_killed" group="trg_auto"
+		enabled="y"	regexp="y" sequence="100" keep_evaluating="y" send_to="12" >
+			<send>	EnableTrigger("trg_xcp_next_cp", true) </send> </trigger>
+					
+	<trigger match="^Congratulations, that was one of the GLOBAL QUEST mobs\!$"
+		name="trg_xcp_next_gq_mob_killed" group="trg_auto"
+		enabled="y"	regexp="y" sequence="100" keep_evaluating="y" send_to="12" > 
+			<send>	EnableTrigger("trg_xcp_next_gq", true) </send> </trigger>		
+		
+	<trigger match="^You have (?:(?:\d+ day(?:s)?, )?\d+ hour(?:s)? and )?\d+ minute(?:s)? left to finish this campaign\.$"
+		script="xcp_next_cp"
+		name="trg_xcp_next_cp" group="trg_auto"
+		enabled="n"	regexp="y" sequence="100" keep_evaluating="y" > </trigger>
+
+	<trigger match="^You may win [0123] more gquests? at this level\.$"
+		script="xcp_next_gq"
+		name="trg_xcp_next_gq" group="trg_auto"
+		enabled="n"	regexp="y" sequence="100" keep_evaluating="y" > </trigger>	
+		
 <!-- QUICK WHERE -->
 	<trigger match="^(?<mobname>\w.{29}) (?<roomname>[^ (0-9].*)$"
 		script="qw_match"
@@ -3975,25 +4304,34 @@ function goto_number(name, line, wildcards)
 		enabled="n" regexp="y" sequence="100" keep_evaluating="y" omit_from_output = "y" > </trigger>
 	
 	<trigger match="^Use 'pagesize \<lines\>' to change, or 'pagesize 0' to disable paging\.$"
+		script=""
 		name="trg_pagesize_gag_1"
 		enabled="n" regexp="y" sequence="100" keep_evaluating="y" omit_from_output = "y" send_to="12" >
 			<send>	EnableTrigger("trg_pagesize_gag_1", false) </send> </trigger>
-			
-<!-- Other triggers -->
-	<trigger match="^[\s\S]$"
-		name="trg_gag_everything"
+
+<!-- Misc. gag triggers -->
+	<trigger match="^Players found: \[\d+\], Max this reboot: \[\d+\], Connections this reboot: \[\d+\]$"
+		name="trg_gag_who_footer_1"
 		enabled="n" regexp="y" sequence="100" keep_evaluating="y" omit_from_output="y" > </trigger>
+
+	<trigger match="^Players invis: \[\d+\], Max on ever: \[\d+\]$"
+		name="trg_gag_who_footer_2"
+		enabled="n" regexp="y" sequence="100" keep_evaluating="y" omit_from_output="y" > </trigger>
+
+	<trigger match="^[\s\S]*$"
+		name="trg_gag_everything"
+		enabled="n" regexp="y" sequence="1" keep_evaluating="y" omit_from_output="y" > </trigger>
 </triggers>
 
 <aliases>
 <!-- Auto-hunt commands-->
 	<alias	match="^ah (?<arg>\w.+)$"
 			script="auto_hunt"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
 	<alias	match="^(?:aha|ah0)$"
 			script="auto_hunt_abort"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 			
 <!-- campaign data input: cp info, check -->
 	<alias	match="^cp (?:i|info)$"
@@ -4017,175 +4355,190 @@ function goto_number(name, line, wildcards)
 <!-- xcp commands  -->
 	<alias	match="^xcp$"
 			script="xcp_noarg"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 			
 	<alias	match="^xcp (?<index>[0-9]+)$"
 			script="xcp_arg"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 		
 	<alias	match="^xcp mode(?: (?<option>ht|qw|off))?$"
 			script="xcp_set_action_mode"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
+			
+	<alias	match="^xcp next(?: (?<option>on|off))?$"
+			script="xcp_next_toggle"
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 					
 <!-- movement: xrunto, go, nx, etc.  -->
 	<alias	match="^(?:xrt|xrun|xrunto) (?<destination>.+)$"
 			script="xrun_to"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 		
 	<alias	match="^(?:go|goto)( (?<index>[0-9]+))?$"
 			script="goto_number"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" keep_evaluating="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" keep_evaluating="y" > </alias>
 
 	<alias	match="^nx$"
 			script="goto_next"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 		
 	<alias	match="^nx-$"
 			script="goto_previous"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
 <!-- Automatic noexp -->
 	<alias	match="^xset noexp( (?<arg>off|[0-9]+))?$"
 			script="xset_noexp_tnl"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
 <!-- Quest commands -->
 	<alias	match="^(?:xq|xq1)$"
 			script="xq_command"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
 <!-- Quick scan -->
 	<alias	match="^qs$"
 			script="quick_scan"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 		
 <!-- Quick-kill commands: qk, ak, kk, xset attack -->
 	<alias	match="^(?:quick kill|ak|kk|qk)$"
 			script="quick_kill"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 		
 	<alias	match="^xset (?:kk|qk|qkill)( (?<arg>.+))?$"
 			script="xset_quick_kill_command"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
 <!-- Hunt trick -->
 	<alias	match="^ht$"
 			script="ht_noarg"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>		
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>		
 
 	<alias	match="^ht (?:(?<index>\d+)\.)?(?<mob>.+)?$"
 			script="ht_arg"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 			
 	<alias	match="^ht(?:a|0| abort| stop)$"
 			script="ht_abort"
-			enabled="y" regexp="y" sequence="95" ignore_case="y" > </alias>	
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>	
 			
 <!-- Quick where -->
 	<alias	match="^qw$"
 			script="qw_noarg"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 			
 	<alias	match="^qw (?:(?<index>\d+)\.)?(?<mob>.+)?$"
 			script="qw_arg"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 	
 	<alias	match="^qwx$"
 			script="qw_exact"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias> 
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias> 
 				
 <!-- roomnotes -->
 	<alias	match="^(?:roomnote|rn)$"
 			script="room_note"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
 	<alias	match="^(?:roomnote|rn) a(?:rea)?(?: (?<arid>.+))?$"
 			script="room_note_area"
-			enabled="y" regexp="y" sequence="99" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
 <!-- Sql Execution -->
 	<alias	match="^runsql (?<sql>.+)$"
 			script="RunSql"
-			enabled="y" regexp="y" sequence="1" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="1" ignore_case="y" send_to="12" > </alias>
 
 	<alias	match="^execsql (?<sql>.+)$"
 			script="ExecSql"
-			enabled="y" regexp="y" sequence="1" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="1" ignore_case="y" send_to="12" > </alias>
 
 <!-- xmapper  -->
 	<alias	match="^(?:xmap|xmapper) move (?<roomid>\d+|-1)(?: (?<speed>run|walk))?$"
 			script="xmapper_move"
-			enabled="y" regexp="y" sequence="95" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 		
 	<alias	match="^xm(?:\ {(?<mob>[^\}]+)\})? (?<loc>.+)$"
 			script="map_area"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
 	<alias	match="^xmall(?:\ {(?<mob>[^\}]+)\})? (?<loc>.+)$"
 			script="map_area_all"
-			enabled="y" regexp="y" sequence="99" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
+	
+	<alias	match="^(?:xm|xmap|xmapper) rlh(?: (?<room_id>\d+))?$"
+			script="xmap_rooms_linking_here"
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
 <!-- xset commands -->
 	<alias  match="^xset (?:index areas|area index)$"
 			script="area_index_process"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 			
-	<alias	match="^xset mark$"
+	<alias	match="^xset (?:mark|start)$"
 			script="xset_to_mark"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
 	<alias  match="^xset vidblain$"
 			script="xset_vidblain"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 			
 	<alias  match="^xset vidblain level(?: (?<level>\d{1,3}))?$"
 			script="xset_vidblain_setlevel"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
 	<alias  match="^xset speed ?(?<speed>run|walk)?$"
 			script="set_speed"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
-	
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
+
+	<alias	match="^xset sendecho$"		
+			script=""
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
+
 <!-- xset window commands -->
 	<alias	match="^xset fontsize( (?<size>[0-9]+))?$"
 			script="xset_font_size"
-			enabled="y" regexp="y" sequence="100"> </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 		
 	<alias	match="^xset linespace( (?<space>[0-9]+))?$"
 			script="xset_line_space"
-			enabled="y" regexp="y" sequence="100" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 		
 	<alias	match="^xset winreset$"
 			script="xg_create_window"
-			enabled="y" regexp="y" sequence="100" send_to="12" >
-				<send>
-					win_init = false</send> </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" >
+				<send>	win_init = false	</send> </alias>
 					
-	<alias	match="^xset (?:window|win) (?<onoff>on|show|1|off|hide|0)$"
+	<alias	match="^xset (?:window|win) (?<onoff>on|off|show|hide|0|1|true|false)$"
 			script="xset_ToggleWindowDisplay"
 			enabled="y" regexp="y" sequence="100" > </alias>
 		
 	<alias	match="^(?:xw|xwh|xwhere)( (?<n1>\d+))?( (?<n2>\d+))?( (?<mob>.+))?$"
 			script="do_xwhere"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
-	<alias	match="^xgui ref$"
+	<alias	match="^(?:xg|xgui) (?:ref|refresh)$"
 			script="xgui_RefreshLinks"
+			enabled="y" regexp="y" sequence="100" > </alias>
+			
+	<alias	match="^(?:xg|xgui) (?:rel|reload)$"
+			script="xgui_ReloadLinks"
 			enabled="y" regexp="y" sequence="100" > </alias>
 	
 <!-- xset page size (area index process) -->
 	<alias	match="^xset suspend page size$"
 			script="suspend_page_size"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
 	<alias	match="^xset resume page size$"
 			script="resume_page_size"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 			
 <!-- xtest commands -->
 	<alias  match="^xtest areadata$"
 			script="xtest_areadata"
-			enabled="y" regexp="y" sequence="100" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
 
 	<alias	match="^xtest mcvars$"
 			script="xtest_mcvars"
@@ -4197,6 +4550,15 @@ function goto_number(name, line, wildcards)
 		
 	<alias	match="^xtest simulate cp(?: (?<type>ar?e?a?|ro?o?m?))?$"
 			script="simulate_cp"
-			enabled="y" regexp="y" sequence="1" ignore_case="y" > </alias>
+			enabled="y" regexp="y" sequence="1" ignore_case="y" send_to="12" > </alias>	
+			
+	<alias	match="^xtest loadroom(?: (?<room_id>\d+))?$"
+			script="xtest_loadroom"
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>
+			
+	<alias	match="^xtest popmsg$"
+			script="xtest_popmsg"
+			enabled="y" regexp="y" sequence="100" ignore_case="y" send_to="12" > </alias>			
+		
 </aliases>
 </muclient>

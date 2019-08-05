@@ -3,7 +3,7 @@ Good morning friends, ninjas, and other fellow associates.  This isn't much of a
 
  - Fixed a crash occurring when your quest mob is 'missing'.
  - If your quest mob is missing, 'xq' will show its last known location.
- - I've had this feature on my own S&D for a while, "xcp next" when you kill your cp or gq mob.  Instead of having to 'xcp' the next mob every single time, now you don't.  The command 'xcp next' by itself toggles the feature on and off, so you can use it or not as you see fit.
+ - I've had this feature on my own S&D for a while, "xcp next" when you kill your cp or gq mob.  Instead of having to 'xcp' the next mob every single time, now you don't.  The command 'xcp next' toggles the feature on and off, so you can use it or not as you see fit.
  - The mob keyword guesser now has an exceptions table which is currently part of the code, but which could easily be
  stored in and loaded from a separate .lua file.  The list of exceptions is far, far from complete but I had it in my own S&D so as proof of concept what I have is included with this update.  I'll go ahead and update it in the code for now, but just so you know my plan of action is to bring it in as part of the planned SDDB system, or to keep it up to date as a separate file that could be loaded in.  You know, imms, you can bitch at me all you want about "minimum keywords" and generally be an obtuse dipshit like Broud if you want to, but the fact is I have more control than you do and if you don't want to be sensible about fixing this stuff mud-side I can just do it for you.  If you don't like it, get with the program or else pound sand and deal.  
  

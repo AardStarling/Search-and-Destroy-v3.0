@@ -1,3 +1,5 @@
+**UPDATE 4 Aug 2019** S&D 3.0 rel-1.0.6 is released.  Please see the readme.md file in this repository.  Thanks and have a good day!
+
 **UPDATE** Within hours of posting this, my character Starling was entirely deleted.  Talk about feeling threatened!  Too good!
 
 Good morning friends, ninjas, and other S&D users and fans of mine,

@@ -9,7 +9,7 @@ Good morning friends, ninjas, and other fellow associates.  This isn't much of a
  
 It's a short list but don't doubt me.  The next big thing is to assimilate the main features of Pwar's Winklegold, which means a lot of database stuff.  It's less complicated than I initially feared, and since Pwar 'borrowed' code from this S&D to use in Winklegold (which is fine, because you're allowed to copy and use what you want) I don't feel too bad about borrowing in return :)  I do plan on including a feature that will take a Winklegold database and copy its data to SDDB and have it work.  I just need some time to research some things and do the overall design work, and the main difficulty is time rather than anything technical.
 
-Also, I'll probably post some of my thoughts at aardstarling.github.io.  You can read them or not as you see fit.
+Also, I'll probably post some of my thoughts at **aardstarling.github.io**.  You can read them or not as you see fit.
 
 That's it for now.  Full ahead and full speed.
 

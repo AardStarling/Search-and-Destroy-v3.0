@@ -18,12 +18,11 @@
 - '**xcp**' targets the first available mob on your cp list and gets possible locations. "Available" means living and location is known.  E.g. the first four mobs on your list are all dead, unknown, and/or both, "xcp" will ignore all of those and target the 5th mob.
 - '**xcp** \<*n*\>' targets the *n*th target on your main target list, dead or alive.  If dead, the MUD only ever gives the area name, even if the cp is room, so dead mobs are always handled as if the cp were area.
 - '**xcp 0**' clears the current target and its room search results.
-- '**xcp mode** \<**ht**\|**qw**\|**off**\>' determines what xcp does after running to an area — "ht", "qw", nothing (area cp's only).  In most cases, "qw" (quick-where) will find the right mob on the first try, without having to hunt trick — this is much faster.  
+- '**xcp mode** \<**ht**\|**qw**\|**off**\>' determines what xcp does after running to an area — "ht", "qw", nothing (area cp's only).  In most cases, "qw" (quick-where) will find the right mob on the first try, without having to hunt trick — this is much faster.
+- '**xcp next**' toggles auto-acquire next target on and off.
 - For area cp's, "xcp" first runs to target area.  Upon arrival, it does quick-where (default) to pick out your cp mob.  If the area has duplicate roomnames, your mob could be in any of them, so use 'go', 'nx', and 'nx-' to check through them.
 - For room cp's, "xcp" gets the room data from your mapper and 'go' will run to that room.  If the same roomname exists in multiple areas, S&D will generate a list item for each of them, but only one will be correct.  The effect of this ranges from barely noticeable, to flooding the output window with 12 links for one mob (all but one of which are wrong and therefore useless).  This is due to problems with filtering results by area and level range.  It's on the radar and eventually I'll do something about it.
 - Unknown mobs can't be targeted because the location isn't in your mapper db.  For area cp's, this means you've never been to the area at all.  For room cp's it means you haven't mapped any rooms with that name in any area — in most of these cases you'll have been to the area before, but haven't explored (i.e. mapped) every room.
-
-- '**xcp next**' toggles auto-acquire next target on and off.
 
 ### Gquest
 - S&D handles gquest in the same way it handles campaigns.

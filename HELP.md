@@ -23,6 +23,8 @@
 - For room cp's, "xcp" gets the room data from your mapper and 'go' will run to that room.  If the same roomname exists in multiple areas, S&D will generate a list item for each of them, but only one will be correct.  The effect of this ranges from barely noticeable, to flooding the output window with 12 links for one mob (all but one of which are wrong and therefore useless).  This is due to problems with filtering results by area and level range.  It's on the radar and eventually I'll do something about it.
 - Unknown mobs can't be targeted because the location isn't in your mapper db.  For area cp's, this means you've never been to the area at all.  For room cp's it means you haven't mapped any rooms with that name in any area — in most of these cases you'll have been to the area before, but haven't explored (i.e. mapped) every room.
 
+- '**xcp next**' toggles auto-acquire next target on and off.
+
 ### Gquest
 - S&D handles gquest in the same way it handles campaigns.
 - The commands for gquest are the same as for campaigns (xcp, go, etc.).

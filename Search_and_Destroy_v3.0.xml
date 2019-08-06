@@ -4000,7 +4000,7 @@ function goto_number(name, line, wildcards)
 		name="trg_gqmsg_winner" 			group="trg_gqmsg_2"
 		enabled="n"	regexp="y" sequence="100" keep_evaluating="y" send_to="12" > </trigger>
 	
-	<trigger match="^Global Quest: Global Quest # (?<gq_id>\d{1,4}) will go into extended time for 3 more minutes\.$"
+	<trigger match="^Global Quest: Global Quest # (?<gq_id>\d{1,4}) will go into extended time for 5 more minutes\.$"
 		script="gqmsg_extended_time"
 		name="trg_gqmsg_extended_time" 		group="trg_gqmsg_ext"
 		enabled="n"	regexp="y" sequence="100" keep_evaluating="y" send_to="12" > </trigger>
